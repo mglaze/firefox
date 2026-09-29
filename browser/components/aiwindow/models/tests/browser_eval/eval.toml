@@ -15,3 +15,12 @@ support-files = [
 ["browser_eval_basic_quality_gptoss120b.js"]
 
 ["browser_eval_basic_quality_qwen3_235b_a22b_instruct2507.js"]
+
+["browser_eval_e2e_group_tabs.js"]
+support-files = [
+  "pages/tab.sjs",
+  "prompts/group_tabs.sys.mjs",
+  "report.sys.mjs",
+  "!/browser/components/tabbrowser/test/browser/smarttabgrouping/performance/data/e2e/flights.html",
+  "!/browser/components/tabbrowser/test/browser/smarttabgrouping/performance/data/e2e/lasagna.html",
+]
