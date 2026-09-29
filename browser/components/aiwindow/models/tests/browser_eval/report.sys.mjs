@@ -1198,19 +1198,16 @@ export async function writeRollupReport(rollup) {
         .join("")
     : `<p class="muted">No model or browser failures.</p>`;
 
-  const stoppedEarly = [
-    health.smokeCheckSkipped
-      ? `${health.smokeCheckSkipped} attempts skipped by the smoke check`
-      : "",
-    health.budgetSkipped
-      ? `${health.budgetSkipped} attempts skipped for budget`
-      : "",
-  ].filter(Boolean);
+  // Smoke check skips are the run working as designed; only budget skips
+  // mean the run stopped early.
   let runStatus = "Run complete";
-  if (stoppedEarly.length) {
-    runStatus = `<strong class="fail">Stopped early</strong>: ${escapeHTML(stoppedEarly.join("; "))}`;
+  if (health.budgetSkipped) {
+    runStatus = `<strong class="fail">Stopped early</strong>: ${health.budgetSkipped} attempts skipped for budget`;
   } else if (partial) {
     runStatus = "Run not finished";
+  }
+  if (health.smokeCheckSkipped) {
+    runStatus += ` · ${health.smokeCheckSkipped} attempts skipped by the smoke check`;
   }
 
   const html = `<!DOCTYPE html>
