@@ -79,11 +79,18 @@ function plannedTabTitle(url) {
 // rec-f01, that would give the answer away.
 function judgeTabView(outcome) {
   const titles = new Map(outcome.openTabs.map(tab => [tab.url, tab.title]));
+  const titleFor = url => titles.get(url) || plannedTabTitle(url);
   return {
     openTabs: outcome.openTabs.map(tab => tab.title),
+    // How the URL tokens in the tool calls map to tabs, as Smart Window
+    // resolves them.
+    urlTokens: outcome.urlTokens.map(({ token, url }) => ({
+      token: `§url_token: ${token}§`,
+      tab: titleFor(url),
+    })),
     groups: outcome.groups.map(group => ({
       label: group.label,
-      tabs: group.urls.map(url => titles.get(url) || plannedTabTitle(url)),
+      tabs: group.urls.map(titleFor),
     })),
   };
 }
@@ -280,6 +287,37 @@ const TIMEOUT_FACTOR = Math.max(
 requestLongerTimeout(TIMEOUT_FACTOR);
 
 /**
+ * Finds open tabs that a manage_tabs call asked to group but that did not end
+ * up in a group. The model picked them, so leaving them out is a Firefox bug.
+ *
+ * @param {object} manageTabsCall - The chat-completions tool call.
+ * @param {Map<string, string>} tokenToUrl - The conversation's URL tokens.
+ * @param {object} outcome - With `openTabs` and `groups` filled in.
+ * @returns {{requested: number, dropped: string[]}} How many tabs the call
+ *   named, and the titles of the open tabs left out.
+ */
+function findDroppedTabs(manageTabsCall, tokenToUrl, outcome) {
+  let items = [];
+  try {
+    items = JSON.parse(manageTabsCall.function.arguments).url_tokens || [];
+  } catch (e) {}
+  const requested = items
+    .map(item => {
+      const match = /§url_token:\s*([A-Z0-9_]+_\d+)§/.exec(String(item));
+      return match ? tokenToUrl.get(match[1]) : item;
+    })
+    .filter(Boolean);
+  const titles = new Map(outcome.openTabs.map(tab => [tab.url, tab.title]));
+  const grouped = new Set(outcome.groups.flatMap(group => group.urls));
+  return {
+    requested: requested.length,
+    dropped: [...new Set(requested)]
+      .filter(url => titles.has(url) && !grouped.has(url))
+      .map(url => titles.get(url)),
+  };
+}
+
+/**
  * @param {string} modelChoice
  * @param {number} attempt
  * @param {object} [fields] - Fields that differ from an attempt that has not
@@ -298,6 +336,7 @@ function makeOutcome(modelChoice, attempt, fields = {}) {
     reply: "",
     groups: [],
     openTabs: [],
+    urlTokens: [],
     durationMs: 0,
     usage: null,
     ...fields,
@@ -383,6 +422,10 @@ async function runAttempt(scenario, modelChoice, attempt) {
     }
 
     const { conversation } = aiWindow;
+    outcome.urlTokens = [...conversation.tokenToUrl].map(([token, url]) => ({
+      token,
+      url,
+    }));
     const messages = conversation.getMessagesInChatCompletionsFormat();
     outcome.toolCalls = messages
       .filter(message => message.tool_calls)
@@ -428,6 +471,17 @@ async function runAttempt(scenario, modelChoice, attempt) {
     }
 
     outcome.groups = snapshotTabGroups(win);
+    const { requested, dropped } = findDroppedTabs(
+      manageTabsCall,
+      conversation.tokenToUrl,
+      outcome
+    );
+    if (dropped.length) {
+      return fail(
+        "product",
+        `manage_tabs asked to group ${requested} tabs, but Firefox left out ${dropped.map(title => `"${title}"`).join(", ")}`
+      );
+    }
     const { ok, reason } = scenario.required
       ? verifyGroupedCatalogTabs(
           outcome.groups,
@@ -601,6 +655,7 @@ async function runScenario(
           messages: renderPrompt(groupTabsEvalPrompt, {
             instruction: scenario.instruction,
             open_tabs: JSON.stringify(tabView.openTabs, null, 2),
+            url_tokens: JSON.stringify(tabView.urlTokens, null, 2),
             model_tool_calls: JSON.stringify(outcome.toolCalls, null, 2),
             tab_groups: JSON.stringify(tabView.groups, null, 2),
           }),
