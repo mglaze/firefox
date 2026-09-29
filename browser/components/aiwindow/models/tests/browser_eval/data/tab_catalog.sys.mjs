@@ -406,3 +406,12 @@ export const TAB_CATALOG = {
     role: "unrelated",
   },
 };
+
+/**
+ * @param {string} url
+ * @returns {string} The catalog id carried in the URL's `id` query parameter,
+ *   or the URL itself for tabs that are not from the catalog.
+ */
+export function catalogIdForUrl(url) {
+  return URL.parse(url)?.searchParams.get("id") ?? url;
+}

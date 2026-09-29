@@ -434,21 +434,23 @@ function verifyGroupedExactly(groups, expectedUrls) {
  * @param {Array<{label: string, urls: string[]}>} groups
  * @param {string[]} required - Catalog ids that must be grouped.
  * @param {string[]} optional - Catalog ids that may be grouped.
- * @param {object} catalog - TAB_CATALOG, for readable reasons.
  * @returns {{ ok: boolean, reason: string }}
  */
-function verifyGroupedCatalogTabs(groups, required, optional, catalog) {
+function verifyGroupedCatalogTabs(groups, required, optional) {
+  // Imported here: only the tests that list the catalog as a support file
+  // call this.
+  const { TAB_CATALOG, catalogIdForUrl } = ChromeUtils.importESModule(
+    "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/data/tab_catalog.sys.mjs"
+  );
   if (groups.length !== 1) {
     return {
       ok: false,
       reason: `expected 1 tab group, found ${groups.length}`,
     };
   }
-  const grouped = groups[0].urls.map(
-    url => URL.parse(url)?.searchParams.get("id") ?? url
-  );
+  const grouped = groups[0].urls.map(catalogIdForUrl);
   const describe = ids =>
-    ids.map(id => `"${catalog[id]?.title ?? id}"`).join(", ");
+    ids.map(id => `"${TAB_CATALOG[id]?.title ?? id}"`).join(", ");
   const missing = required.filter(id => !grouped.includes(id));
   const extra = grouped.filter(
     id => !required.includes(id) && !optional.includes(id)

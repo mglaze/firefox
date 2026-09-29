@@ -51,7 +51,7 @@ const {
   "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/report.sys.mjs"
 );
 
-const { TAB_CATALOG } = ChromeUtils.importESModule(
+const { TAB_CATALOG, catalogIdForUrl } = ChromeUtils.importESModule(
   "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/data/tab_catalog.sys.mjs"
 );
 
@@ -71,8 +71,7 @@ function catalogTabUrl(id) {
 }
 
 function plannedTabTitle(url) {
-  const parsed = URL.parse(url);
-  const entry = parsed && TAB_CATALOG[parsed.searchParams.get("id")];
+  const entry = TAB_CATALOG[catalogIdForUrl(url)];
   return entry ? entry.title : url.split("/").at(-1);
 }
 
@@ -280,23 +279,15 @@ const TIMEOUT_FACTOR = Math.max(
 );
 requestLongerTimeout(TIMEOUT_FACTOR);
 
-async function addLoadedTab(win, url) {
-  const tab = BrowserTestUtils.addTab(win.gBrowser, url);
-  await BrowserTestUtils.browserLoaded(tab.linkedBrowser, { wantLoad: url });
-  return tab;
-}
-
 /**
- * Runs a scenario once in a fresh Smart Window.
- *
- * @param {object} scenario - An entry of SCENARIOS.
  * @param {string} modelChoice
  * @param {number} attempt
- * @returns {Promise<object>} The outcome. `result` is "pass", "model",
- *   "product" or "infra".
+ * @param {object} [fields] - Fields that differ from an attempt that has not
+ *   run yet.
+ * @returns {object} An attempt outcome.
  */
-async function runAttempt(scenario, modelChoice, attempt) {
-  const outcome = {
+function makeOutcome(modelChoice, attempt, fields = {}) {
+  return {
     modelChoice,
     attempt,
     model: "",
@@ -309,7 +300,21 @@ async function runAttempt(scenario, modelChoice, attempt) {
     openTabs: [],
     durationMs: 0,
     usage: null,
+    ...fields,
   };
+}
+
+/**
+ * Runs a scenario once in a fresh Smart Window.
+ *
+ * @param {object} scenario - An entry of SCENARIOS.
+ * @param {string} modelChoice
+ * @param {number} attempt
+ * @returns {Promise<object>} The outcome. `result` is "pass", "model",
+ *   "product" or "infra".
+ */
+async function runAttempt(scenario, modelChoice, attempt) {
+  const outcome = makeOutcome(modelChoice, attempt);
   const fail = (result, reason) => Object.assign(outcome, { result, reason });
 
   const fetchWithHistorySpy = sinon.spy(Chat, "fetchWithHistory");
@@ -321,10 +326,17 @@ async function runAttempt(scenario, modelChoice, attempt) {
 
   try {
     win = await AIWindowTestUtils.openReadyAIWindow();
-    const tabs = [];
-    for (const url of scenario.tabs) {
-      tabs.push(await addLoadedTab(win, url));
-    }
+    // Added in order, loaded in parallel.
+    const tabs = scenario.tabs.map(url =>
+      BrowserTestUtils.addTab(win.gBrowser, url)
+    );
+    await Promise.all(
+      tabs.map((tab, i) =>
+        BrowserTestUtils.browserLoaded(tab.linkedBrowser, {
+          wantLoad: scenario.tabs[i],
+        })
+      )
+    );
     win.gBrowser.selectedTab = tabs.at(-1);
     outcome.openTabs = tabs.map(tab => ({
       title: tab.label,
@@ -420,8 +432,7 @@ async function runAttempt(scenario, modelChoice, attempt) {
       ? verifyGroupedCatalogTabs(
           outcome.groups,
           scenario.required,
-          scenario.optional,
-          TAB_CATALOG
+          scenario.optional
         )
       : verifyGroupedExactly(outcome.groups, scenario.expectedUrls);
     return ok
@@ -473,20 +484,10 @@ async function runAttemptWithRateLimitRetries(scenario, modelChoice, attempt) {
     try {
       outcome = await runAttempt(scenario, modelChoice, attempt);
     } catch (e) {
-      outcome = {
-        modelChoice,
-        attempt,
-        model: "",
+      outcome = makeOutcome(modelChoice, attempt, {
         result: "infra",
         reason: `unexpected error, possibly a slow or failing backend: ${e}`,
-        path: null,
-        toolCalls: [],
-        reply: "",
-        groups: [],
-        openTabs: [],
-        durationMs: 0,
-        usage: null,
-      };
+      });
     }
     outcome.retries = retries;
     if (!outcome.rateLimited || retries >= RATE_LIMIT_RETRIES) {
@@ -531,21 +532,8 @@ async function runScenario(
   { attemptsPerModel, smokeCheckFailures, judgeScript }
 ) {
   const attempts = [];
-  const notRun = (modelChoice, attempt, result, reason) => ({
-    modelChoice,
-    attempt,
-    model: "",
-    result,
-    reason,
-    path: null,
-    toolCalls: [],
-    reply: "",
-    groups: [],
-    openTabs: [],
-    durationMs: 0,
-    usage: null,
-    retries: 0,
-  });
+  const notRun = (modelChoice, attempt, result, reason) =>
+    makeOutcome(modelChoice, attempt, { result, reason, retries: 0 });
   for (let attempt = 1; attempt <= attemptsPerModel; attempt++) {
     for (const modelChoice of MODEL_CHOICES) {
       let outcome;

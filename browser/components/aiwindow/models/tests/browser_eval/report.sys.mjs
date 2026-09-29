@@ -11,6 +11,8 @@
  * not pass the smoke check scenario).
  */
 
+import { catalogIdForUrl } from "./data/tab_catalog.sys.mjs";
+
 const FAILURE_RESULTS = ["model", "product", "infra"];
 
 export const VERDICTS = {
@@ -650,15 +652,16 @@ export async function writeScenarioReport(report) {
     .join("");
 
   // Catalog tabs are matched by their id, which survives URL normalization.
-  const tabKey = url => URL.parse(url)?.searchParams.get("id") ?? url;
-  const expectedKeys = new Set(report.expectedUrls.map(tabKey));
-  const optionalKeys = new Set((report.optionalUrls ?? []).map(tabKey));
+  const expectedKeys = new Set(report.expectedUrls.map(catalogIdForUrl));
+  const optionalKeys = new Set(
+    (report.optionalUrls ?? []).map(catalogIdForUrl)
+  );
   const tabsList = report.openTabs
     .map(tab => {
       let note = "";
-      if (expectedKeys.has(tabKey(tab.url))) {
+      if (expectedKeys.has(catalogIdForUrl(tab.url))) {
         note = " <em>(expected in group)</em>";
-      } else if (optionalKeys.has(tabKey(tab.url))) {
+      } else if (optionalKeys.has(catalogIdForUrl(tab.url))) {
         note = " <em>(optional: may be grouped)</em>";
       }
       return `<li>${escapeHTML(tab.title)}${note}</li>`;
@@ -705,11 +708,10 @@ ${budgetBanner(report)}
     <dt>Instruction</dt><dd>${escapeHTML(report.instruction)}</dd>
     <dt>Open tabs</dt><dd><ul>${tabsList}</ul></dd>
     <dt>Pass condition</dt><dd>${
-      report.optionalUrls?.length ||
-      report.expectedUrls.length !== report.openTabs.length
-        ? "Exactly one tab group containing every expected tab and nothing that is not expected or optional. Label and confirmation choice are ignored."
+      report.optionalUrls?.length
+        ? "Exactly one tab group containing every expected tab, any of the optional tabs and nothing else."
         : "Exactly one tab group containing exactly the expected tabs."
-    }</dd>
+    } Label and confirmation choice are ignored.</dd>
     <dt>Tier</dt><dd>${escapeHTML(tierText)}</dd>
     <dt>Attempts per model</dt><dd>${report.attemptsPerModel}</dd>
     <dt>Verdict gate</dt><dd>Healthy at a pass rate of ${percent(report.passRateGate)} or more with no browser failures.</dd>
