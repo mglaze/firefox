@@ -18,6 +18,10 @@ support-files = [
 
 ["browser_eval_e2e_group_tabs.js"]
 support-files = [
+  "pages/cookie_recipe.html",
+  "data/tab_catalog.sys.mjs",
+  "pages/cookware_shop.html",
+  "pages/pizza_restaurants.html",
   "pages/tab.sjs",
   "prompts/group_tabs.sys.mjs",
   "report.sys.mjs",
