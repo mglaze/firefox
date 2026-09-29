@@ -298,7 +298,8 @@ const judgeScriptTag = fileName =>
   fileName ? `<script src="${escapeHTML(fileName)}"></script>` : "";
 
 // Fills [data-judge-*] placeholders from window.LLM_JUDGE_RESULTS, which the
-// judge results script defines, keyed by judgeId().
+// judge results script defines, keyed by judgeId(). Scores show as colored
+// chips: 8 and up good, 5 to 8 fair, under 5 poor.
 const JUDGE_FILLER = `<script>
 (() => {
   const results = window.LLM_JUDGE_RESULTS;
@@ -311,10 +312,41 @@ const JUDGE_FILLER = `<script>
   });
   const oneDecimal = n => (Math.round(n * 10) / 10).toString();
   const mean = values => values.reduce((a, b) => a + b, 0) / values.length;
+  const chip = (label, score, title) => {
+    const span = document.createElement("span");
+    let band = "poor";
+    if (score >= 8) {
+      band = "good";
+    } else if (score >= 5) {
+      band = "fair";
+    }
+    span.className = "score score-" + band;
+    span.title = title;
+    span.textContent = label + " " + oneDecimal(score);
+    return span;
+  };
+  const showScores = (el, goal, tool, judged) => {
+    el.textContent = "";
+    el.classList.remove("muted");
+    el.append(
+      chip("Goal completion", goal, "Did the tab groups end up matching the request: the right tabs grouped and nothing else?"),
+      " ",
+      chip("Tool accuracy", tool, "Did the assistant use the tools correctly: get_open_tabs, then manage_tabs with valid tab tokens? Which tabs it picked is scored by goal completion.")
+    );
+    if (judged) {
+      const count = document.createElement("span");
+      count.className = "judged-count";
+      count.textContent = judged + " judged";
+      el.append(" ", count);
+    }
+  };
   for (const el of document.querySelectorAll("[data-judge-id]")) {
     const r = results[el.dataset.judgeId];
-    el.textContent = r ? r.goal_completion + " / " + r.tool_accuracy : "not judged";
-    el.classList.toggle("muted", !r);
+    if (r) {
+      showScores(el, r.goal_completion, r.tool_accuracy);
+    } else {
+      el.textContent = "not judged";
+    }
   }
   for (const el of document.querySelectorAll("[data-judge-reason]")) {
     const r = results[el.dataset.judgeReason];
@@ -326,12 +358,16 @@ const JUDGE_FILLER = `<script>
         e.modelChoice === el.dataset.judgeModel &&
         (!el.dataset.judgeScenario || e.scenario === el.dataset.judgeScenario)
     );
-    el.classList.toggle("muted", !matching.length);
-    el.textContent = matching.length
-      ? "goal " + oneDecimal(mean(matching.map(e => e.r.goal_completion))) +
-        " · tool " + oneDecimal(mean(matching.map(e => e.r.tool_accuracy))) +
-        ("judgeCompact" in el.dataset ? "" : " (" + matching.length + " judged)")
-      : "not judged";
+    if (!matching.length) {
+      el.textContent = "not judged";
+      continue;
+    }
+    showScores(
+      el,
+      mean(matching.map(e => e.r.goal_completion)),
+      mean(matching.map(e => e.r.tool_accuracy)),
+      "judgeCompact" in el.dataset ? 0 : matching.length
+    );
   }
 })();
 </script>`;
@@ -378,6 +414,11 @@ const STYLES = `
   pre { background: #f9f9fb; padding: 8px; max-width: 60em; white-space: pre-wrap; overflow-wrap: anywhere; }
   code { overflow-wrap: break-word; }
   thead th { position: sticky; top: 0; z-index: 2; }
+  .score { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 0.9em; font-weight: 600; white-space: nowrap; }
+  .score-good { background: #d7f5e3; color: #01532b; }
+  .score-fair { background: #fff4de; color: #7a4a00; }
+  .score-poor { background: #ffe1e6; color: #8f0030; }
+  .judged-count { color: #5b5b66; font-size: 0.85em; white-space: nowrap; }
   .tag { display: inline-block; border: 1px solid #8f8f9d; border-radius: 4px; padding: 0 5px; font-size: 0.85em; font-weight: 600; margin-inline-start: 4px; }
   .headline { border: 1px solid; border-radius: 6px; padding: 12px 16px; margin: 1em 0; font-size: 1.1em; }
   .headline-healthy { background: #d7f5e3; border-color: #017a40; }
@@ -453,7 +494,11 @@ const LEGEND = `
   <table>
     <tr><th>Term</th><th>Meaning</th></tr>
     <tr><td><strong>Pass rate</strong></td><td>Passes out of judged attempts (passes, model and product failures). Infra failures and skipped attempts are left out.</td></tr>
-    <tr><td><strong>Quality (judge)</strong></td><td>Average LLM judge scores, 1 to 10, for goal completion and tool accuracy over passes and model failures. Informational: it does not change verdicts.</td></tr>
+    <tr><td><strong>Quality (judge)</strong></td><td>Average LLM judge scores, 1 to 10, over passes and model failures. Informational: it does not change verdicts.
+      <strong>Goal completion</strong>: did the tab groups end up matching the request (the right tabs grouped and nothing else)?
+      <strong>Tool accuracy</strong>: did the assistant use the tools correctly (get_open_tabs, then manage_tabs with valid tab tokens)? It ignores which tabs were picked.
+      For example, grouping a meal-kit tab with the recipes scores low on goal completion but can still score 10 on tool accuracy.
+      Colors: <span class="score score-good">8 and up</span> <span class="score score-fair">5 to 8</span> <span class="score score-poor">under 5</span></td></tr>
     <tr><td><strong>Tokens per pass</strong></td><td>All tokens divided by passes, so failures add to it</td></tr>
     <tr><td><strong>Picker choice</strong></td><td>The Smart Window model picker setting used to select the model</td></tr>
   </table>
@@ -751,7 +796,7 @@ ${LEGEND}
   <thead>
     <tr><th data-sortable>Model</th><th data-sortable>#</th><th data-sortable>Result</th>
         <th data-sortable>Reason</th><th data-sortable>Tokens in / out</th>
-        <th data-sortable title="LLM judge scores, 1 to 10">Judge (goal / tool)</th>
+        <th data-sortable title="LLM judge scores, 1 to 10">Judge</th>
         <th data-sortable data-col="toolcalls">Tool calls</th><th data-sortable data-col="path">Path</th>
         <th data-sortable data-col="label">Group label</th><th data-sortable data-col="turn">Turn</th>
         <th data-sortable data-col="retries">Retries</th><th></th></tr>
@@ -1196,15 +1241,15 @@ ${
   <tbody>${modelRows}</tbody>
 </table>
 
+<h2>Hot spots: scenarios to check</h2>
+${hotSpotList}
+
 <h2>Scenarios by model</h2>
 <table class="matrix stack">
   <thead><tr><th>Scenario</th>${modelHeaders}</tr></thead>
   <tbody>${matrixRows}</tbody>
   <tfoot>${matrixFooter}</tfoot>
 </table>
-
-<h2>Hot spots: scenarios to check</h2>
-${hotSpotList}
 ${LEGEND}
 ${JUDGE_FILLER}
 </body>
