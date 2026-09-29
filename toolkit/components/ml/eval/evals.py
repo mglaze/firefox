@@ -46,6 +46,30 @@ class _LlmJudge(_Evaluation):
         self.model = config.get("model", "vertex_ai/mistral-small-2503")
         self.fxa_token = os.environ.get("MOZ_FXA_BEARER_TOKEN")
         self.mlpa_token = os.environ.get("MOZ_MLPA_AUTHORIZATION_TOKEN")
+        self.service_type = os.environ.get("MOZ_EVAL_JUDGE_SERVICE_TYPE")
+        self.logged_auth = False
+
+    def auth_headers(self) -> dict[str, str]:
+        if not self.fxa_token:
+            raise RuntimeError("Missing MOZ_FXA_BEARER_TOKEN for LLM evaluation.")
+        headers = {"Authorization": f"Bearer {self.fxa_token}"}
+        if self.mlpa_token:
+            headers["X-Dev-Authorization"] = self.mlpa_token
+            headers["Service-Type"] = "mochi-dev"
+        elif self.service_type == "ai":
+            # MLPA accepts an FxA token alone for the "ai" service type, but it
+            # counts against the same per-account limits as real Firefox use.
+            headers["Service-Type"] = "ai"
+            if not self.logged_auth:
+                self.log("LLM judge: FxA-only auth, service type ai")
+                self.logged_auth = True
+        else:
+            raise RuntimeError(
+                "Missing MOZ_MLPA_AUTHORIZATION_TOKEN for LLM evaluation. Set it, "
+                "or set MOZ_EVAL_JUDGE_SERVICE_TYPE=ai to judge with the FxA "
+                "token alone."
+            )
+        return headers
 
     def query_llm(
         self,
@@ -55,23 +79,11 @@ class _LlmJudge(_Evaluation):
     ):
         from openai import OpenAI
 
-        # check for tokens
-        if not self.fxa_token:
-            raise RuntimeError("Missing MOZ_FXA_BEARER_TOKEN for LLM evaluation.")
-        if not self.mlpa_token:
-            raise RuntimeError(
-                "Missing MOZ_MLPA_AUTHORIZATION_TOKEN for LLM evaluation."
-            )
-
         # generate client
         client = OpenAI(
             api_key="unused",
             base_url=f"{self.mlpa_url}/v1",
-            default_headers={
-                "Authorization": f"Bearer {self.fxa_token}",
-                "X-Dev-Authorization": self.mlpa_token,
-                "Service-Type": "mochi-dev",
-            },
+            default_headers=self.auth_headers(),
         )
 
         # construct appropriate payload
@@ -177,6 +189,7 @@ class LlmJudge(_LlmJudge):
         # Subclasses can implement specific prompting and parsing logic as needed.
         results = {}
         eval_config = {}
+        results_scripts = {}
         for payload in payloads:
             # Per-payload evalConfig takes precedence over the top-level eval_config.
             eval_config = payload.get("eval_config", {})
@@ -194,6 +207,10 @@ class LlmJudge(_LlmJudge):
                 messages=messages,
                 response_format=response_format,
             )
+            if payload.get("id") and payload.get("results_script"):
+                results_scripts.setdefault(payload["results_script"], {})[
+                    payload["id"]
+                ] = response
             errors = []
             for key, value in response.items():
                 key_config = eval_config.get(key, {})
@@ -216,6 +233,13 @@ class LlmJudge(_LlmJudge):
 
         if not results:
             raise ValueError("No evaluation results were produced for LLM judge data.")
+
+        # Payloads can ask for their responses, keyed by payload id, in a script
+        # that HTML reports opened from disk load with a <script> tag.
+        for path, responses in results_scripts.items():
+            with open(path, "w", encoding="utf-8") as script:
+                script.write(f"window.LLM_JUDGE_RESULTS = {json.dumps(responses)};\n")
+            self.log(f"Wrote {len(responses)} judge results to {path}")
 
         # verify that numeric results meet any specified thresholds and determine if any alerts should be raised
         for key, values in results.items():

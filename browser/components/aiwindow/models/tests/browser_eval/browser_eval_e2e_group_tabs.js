@@ -3,7 +3,9 @@
 
 "use strict";
 
-requestLongerTimeout(40);
+// mozperftest parses this file with Python esprima (ES2017) to read
+// evalMetadata, so avoid ?., ??, logical assignment and optional catch
+// bindings here; they break `./mach eval` but not `./mach test`.
 
 const evalMetadata = {
   owner: "Smart Window",
@@ -39,7 +41,13 @@ const LASAGNA = E2E_PAGES + "lasagna.html";
 const COOKIES = EVAL_PAGES + "cookie_recipe.html";
 const FLIGHTS = E2E_PAGES + "flights.html";
 
-const { writeScenarioReport, writeRollupReport } = ChromeUtils.importESModule(
+const {
+  judgeId,
+  judgeResultsScript,
+  runStamp,
+  writeScenarioReport,
+  writeRollupReport,
+} = ChromeUtils.importESModule(
   "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/report.sys.mjs"
 );
 
@@ -60,6 +68,25 @@ function catalogTabUrl(id) {
       char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
     );
   return `${EVAL_PAGES}tab.sjs?id=${encode(id)}&title=${encode(TAB_CATALOG[id].title)}`;
+}
+
+function plannedTabTitle(url) {
+  const parsed = URL.parse(url);
+  const entry = parsed && TAB_CATALOG[parsed.searchParams.get("id")];
+  return entry ? entry.title : url.split("/").at(-1);
+}
+
+// The judge sees tab titles only: catalog URLs carry role-coded ids, such as
+// rec-f01, that would give the answer away.
+function judgeTabView(outcome) {
+  const titles = new Map(outcome.openTabs.map(tab => [tab.url, tab.title]));
+  return {
+    openTabs: outcome.openTabs.map(tab => tab.title),
+    groups: outcome.groups.map(group => ({
+      label: group.label,
+      tabs: group.urls.map(url => titles.get(url) || plannedTabTitle(url)),
+    })),
+  };
 }
 
 /**
@@ -232,8 +259,26 @@ const RATE_LIMIT_WAIT_MS = Number(
 // Checked before each attempt, so the attempt in flight can overshoot it.
 // 0 disables the cap.
 const TOKEN_BUDGET = Number(
-  Services.env.get("SMARTWINDOW_E2E_TOKEN_BUDGET") ?? 1500000
+  Services.env.get("SMARTWINDOW_E2E_TOKEN_BUDGET") || 1500000
 );
+
+// Size the harness timeout (45s units) from the plan: up to a minute per
+// attempt plus its rate-limit waits. It is a ceiling, not the expected time.
+const PLANNED_ATTEMPTS =
+  MODEL_CHOICES.length *
+  SCENARIOS.filter(s => SELECTED_SCENARIOS.includes(s.id)).reduce(
+    (n, s) => n + (s.tier === "basic" ? BASIC_ATTEMPTS : ATTEMPTS_PER_MODEL),
+    0
+  );
+const TIMEOUT_FACTOR = Math.max(
+  40,
+  Math.ceil(
+    (PLANNED_ATTEMPTS *
+      (60 + (RATE_LIMIT_RETRIES * RATE_LIMIT_WAIT_MS) / 1000)) /
+      45
+  )
+);
+requestLongerTimeout(TIMEOUT_FACTOR);
 
 async function addLoadedTab(win, url) {
   const tab = BrowserTestUtils.addTab(win.gBrowser, url);
@@ -298,7 +343,8 @@ async function runAttempt(scenario, modelChoice, attempt) {
     await submitSmartbar(sidebarBrowser);
     await waitForTurnComplete(aiWindow);
     outcome.durationMs = ChromeUtils.now() - start;
-    outcome.model = aiWindow.conversation.engine?.model ?? "";
+    const engine = aiWindow.conversation.engine;
+    outcome.model = (engine && engine.model) || "";
     outcome.usage = await collectTurnUsage(
       receiveResponseSpy,
       aiWindow.conversation
@@ -316,7 +362,8 @@ async function runAttempt(scenario, modelChoice, attempt) {
       outcome.rateLimited = rateLimited;
       return fail(kind, reason);
     }
-    if (fetchWithHistorySpy.lastCall.args[0].signal?.aborted) {
+    const { signal } = fetchWithHistorySpy.lastCall.args[0];
+    if (signal && signal.aborted) {
       return fail(
         "product",
         "the chat request was aborted before the turn finished"
@@ -328,18 +375,22 @@ async function runAttempt(scenario, modelChoice, attempt) {
     outcome.toolCalls = messages
       .filter(message => message.tool_calls)
       .flatMap(message => message.tool_calls);
-    outcome.reply =
-      messages.findLast(message => message.role === "assistant")?.content ?? "";
+    const lastReply = messages.findLast(
+      message => message.role === "assistant"
+    );
+    outcome.reply = (lastReply && lastReply.content) || "";
 
     const manageTabsCall = outcome.toolCalls.findLast(
-      call => call.function?.name === "manage_tabs"
+      call => call.function && call.function.name === "manage_tabs"
     );
     if (!manageTabsCall) {
       return fail("model", "manage_tabs was not called");
     }
 
-    const uiType = conversation.messages.findLast(message => message.toolUIData)
-      ?.toolUIData?.uiType;
+    const lastUIMessage = conversation.messages.findLast(
+      message => message.toolUIData
+    );
+    const uiType = lastUIMessage && lastUIMessage.toolUIData.uiType;
     if (uiType === "tab-group-confirmation") {
       outcome.path = "confirmation";
       await clickConfirmationCardConfirm(aiWindow);
@@ -394,7 +445,29 @@ async function runAttempt(scenario, modelChoice, attempt) {
  * @param {number} attempt
  * @returns {Promise<object>} The outcome, with the number of `retries` used.
  */
+const NO_USAGE = {
+  input: 0,
+  output: 0,
+  cached: 0,
+  total: 0,
+  reported: false,
+  rounds: [],
+};
+
+function addUsage(a, b) {
+  return {
+    input: a.input + b.input,
+    output: a.output + b.output,
+    cached: a.cached + b.cached,
+    total: a.total + b.total,
+    reported: a.reported || b.reported,
+    rounds: [...a.rounds, ...b.rounds],
+  };
+}
+
 async function runAttemptWithRateLimitRetries(scenario, modelChoice, attempt) {
+  // Tokens a rate-limited try spent before failing still count.
+  let retryUsage = null;
   for (let retries = 0; ; retries++) {
     let outcome;
     try {
@@ -417,7 +490,14 @@ async function runAttemptWithRateLimitRetries(scenario, modelChoice, attempt) {
     }
     outcome.retries = retries;
     if (!outcome.rateLimited || retries >= RATE_LIMIT_RETRIES) {
+      if (retryUsage && retryUsage.total) {
+        outcome.usage = addUsage(outcome.usage || NO_USAGE, retryUsage);
+        outcome.usage.retryTokens = retryUsage.total;
+      }
       return outcome;
+    }
+    if (outcome.usage) {
+      retryUsage = addUsage(retryUsage || NO_USAGE, outcome.usage);
     }
     info(
       `${scenario.id}: model choice ${modelChoice} attempt ${attempt} was rate limited, retrying in ${RATE_LIMIT_WAIT_MS}ms`
@@ -440,13 +520,15 @@ async function runAttemptWithRateLimitRetries(scenario, modelChoice, attempt) {
  * @param {number} options.attemptsPerModel
  * @param {Map<string, string>} options.smokeCheckFailures - Reason, keyed by
  *   model choice, for models that did not pass the smoke check scenario.
+ * @param {{path: string, fileName: string}} options.judgeScript - Where the
+ *   judge writes its results, see judgeResultsScript().
  * @returns {Promise<{attempts: object[], reportPath: string}>}
  */
 async function runScenario(
   scenario,
   budget,
   modelNames,
-  { attemptsPerModel, smokeCheckFailures }
+  { attemptsPerModel, smokeCheckFailures, judgeScript }
 ) {
   const attempts = [];
   const notRun = (modelChoice, attempt, result, reason) => ({
@@ -491,7 +573,7 @@ async function runScenario(
           attempt
         );
         await SpecialPowers.popPrefEnv();
-        budget.used += outcome.usage?.total ?? 0;
+        budget.used += (outcome.usage && outcome.usage.total) || 0;
         if (
           budget.limit &&
           !budget.warned &&
@@ -503,7 +585,9 @@ async function runScenario(
           );
         }
       }
-      outcome.model ||= modelNames.get(modelChoice) ?? "";
+      if (!outcome.model) {
+        outcome.model = modelNames.get(modelChoice) || "";
+      }
       attempts.push(outcome);
       info(
         `smartwindowE2EAttempt | ${JSON.stringify({
@@ -514,19 +598,22 @@ async function runScenario(
           result: outcome.result,
           reason: outcome.reason,
           retries: outcome.retries,
-          tokens: outcome.usage?.total ?? 0,
+          tokens: (outcome.usage && outcome.usage.total) || 0,
         })}`
       );
 
       if (outcome.result === "budget" || outcome.result === "smoke-check") {
         info(`${scenario.id}: ${outcome.reason}`);
       } else if (outcome.result === "pass" || outcome.result === "model") {
+        const tabView = judgeTabView(outcome);
         MLTestUtils.reportEvalData({
+          id: judgeId(scenario.id, modelChoice, attempt),
+          results_script: judgeScript.path,
           messages: renderPrompt(groupTabsEvalPrompt, {
             instruction: scenario.instruction,
-            open_tabs: JSON.stringify(outcome.openTabs, null, 2),
+            open_tabs: JSON.stringify(tabView.openTabs, null, 2),
             model_tool_calls: JSON.stringify(outcome.toolCalls, null, 2),
-            tab_groups: JSON.stringify(outcome.groups, null, 2),
+            tab_groups: JSON.stringify(tabView.groups, null, 2),
           }),
           response_format: groupTabsEvalResponseFormat,
           eval_config: groupTabsEvalConfig,
@@ -542,27 +629,24 @@ async function runScenario(
     }
   }
 
+  // Fall back to the planned tabs when no attempt ran.
+  const ranTabs = attempts.find(a => a.openTabs.length);
   const { path: reportPath } = await writeScenarioReport({
     id: scenario.id,
     title: scenario.title,
     instruction: scenario.instruction,
-    // Fall back to the planned tabs when no attempt ran.
-    openTabs:
-      attempts.find(a => a.openTabs.length)?.openTabs ??
-      scenario.tabs.map(url => ({
-        title:
-          TAB_CATALOG[URL.parse(url)?.searchParams.get("id")]?.title ??
-          url.split("/").at(-1),
-        url,
-      })),
+    openTabs: ranTabs
+      ? ranTabs.openTabs
+      : scenario.tabs.map(url => ({ title: plannedTabTitle(url), url })),
     expectedUrls: scenario.expectedUrls,
-    optionalUrls: scenario.optionalUrls ?? [],
+    optionalUrls: scenario.optionalUrls || [],
     tier: scenario.tier,
     attemptsPerModel,
     passRateGate: PASS_RATE_GATE,
     tokenBudget: { limit: budget.limit, used: budget.used },
     modelNames,
     attempts,
+    judgeScriptFile: judgeScript.fileName,
   });
   info(`Report for ${scenario.id} written to ${reportPath}`);
 
@@ -570,7 +654,7 @@ async function runScenario(
     const forModel = attempts.filter(a => a.modelChoice === modelChoice);
     const passes = forModel.filter(a => a.result === "pass").length;
     info(
-      `${scenario.id}: model choice ${modelChoice} (${forModel[0]?.model}): ${passes}/${forModel.length} passed`
+      `${scenario.id}: model choice ${modelChoice} (${forModel.length ? forModel[0].model : ""}): ${passes}/${forModel.length} passed`
     );
   }
   return { attempts, reportPath };
@@ -625,31 +709,51 @@ add_task(async function test_group_recipe_tabs() {
   );
 
   const { cleanup } = await setupSmartWindowE2E(token);
+  info(
+    `Timeout sized for ${PLANNED_ATTEMPTS} planned attempts (factor ${TIMEOUT_FACTOR})`
+  );
   const budget = { limit: TOKEN_BUDGET, used: 0, warned: false };
+  const stamp = runStamp();
+  const judgeScript = await judgeResultsScript(stamp);
   // Resolved from the in-tree Remote Settings dump, the same way the Smart
   // Window model picker does, without calling the model.
   const modelNames = new Map();
   for (const modelChoice of MODEL_CHOICES) {
-    modelNames.set(
-      modelChoice,
-      (await getModelForChoice(modelChoice))?.model ?? ""
-    );
+    const model = await getModelForChoice(modelChoice);
+    modelNames.set(modelChoice, (model && model.model) || "");
   }
   const smokeCheck = scenarios.find(s => s.tier === "basic");
   const advanced = scenarios.filter(s => s.tier !== "basic");
   let smokeCheckFailures = new Map();
   const results = [];
+  // Rewritten after every scenario, so a harness timeout still leaves an
+  // up-to-date roll-up.
+  const writeRollup = () =>
+    writeRollupReport({
+      scenarios: results,
+      modelChoices: MODEL_CHOICES,
+      modelNames,
+      defaultModelChoice: DEFAULT_MODEL_CHOICE,
+      passRateGate: PASS_RATE_GATE,
+      tokenBudget: { limit: budget.limit, used: budget.used },
+      judgeScriptFile: judgeScript.fileName,
+      runStamp: stamp,
+      scenariosPlanned: scenarios.length,
+    });
+  let rollupPath;
   try {
     if (smokeCheck) {
       const result = await runScenario(smokeCheck, budget, modelNames, {
         attemptsPerModel: BASIC_ATTEMPTS,
         smokeCheckFailures,
+        judgeScript,
       });
       results.push({
         ...smokeCheck,
         attemptsPerModel: BASIC_ATTEMPTS,
         ...result,
       });
+      rollupPath = await writeRollup();
       smokeCheckFailures = findSmokeCheckFailures(
         smokeCheck,
         result.attempts,
@@ -667,21 +771,15 @@ add_task(async function test_group_recipe_tabs() {
       const result = await runScenario(scenario, budget, modelNames, {
         attemptsPerModel: ATTEMPTS_PER_MODEL,
         smokeCheckFailures,
+        judgeScript,
       });
       results.push({
         ...scenario,
         attemptsPerModel: ATTEMPTS_PER_MODEL,
         ...result,
       });
+      rollupPath = await writeRollup();
     }
-    const rollupPath = await writeRollupReport({
-      scenarios: results,
-      modelChoices: MODEL_CHOICES,
-      modelNames,
-      defaultModelChoice: DEFAULT_MODEL_CHOICE,
-      passRateGate: PASS_RATE_GATE,
-      tokenBudget: { limit: budget.limit, used: budget.used },
-    });
     info(`Roll-up written to ${rollupPath}`);
   } finally {
     await cleanup();

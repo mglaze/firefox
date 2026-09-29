@@ -51,6 +51,36 @@ async function reportDir() {
   return dir;
 }
 
+/**
+ * Picks the file the LLM judge writes its per-attempt results to once
+ * `./mach eval` finishes. Reports load it with a script tag, since pages
+ * opened from disk cannot fetch sibling files.
+ *
+ * @param {string} stamp - From runStamp().
+ * @returns {Promise<{path: string, fileName: string}>}
+ */
+export async function judgeResultsScript(stamp) {
+  const fileName = `smartwindow-e2e-judge-${stamp}.js`;
+  return { path: PathUtils.join(await reportDir(), fileName), fileName };
+}
+
+/**
+ * @returns {string} A timestamp that names one run's roll-up and judge
+ *   results files, so the roll-up can be rewritten in place as the run goes.
+ */
+export function runStamp() {
+  return timestamp();
+}
+
+/**
+ * @param {string} scenarioId
+ * @param {string} modelChoice
+ * @param {number} attempt
+ * @returns {string} The id that links a judge result to its attempt.
+ */
+export const judgeId = (scenarioId, modelChoice, attempt) =>
+  `${scenarioId}|${modelChoice}|${attempt}`;
+
 function timestamp() {
   return new Date().toISOString().replace(/[:.]/g, "-");
 }
@@ -258,6 +288,53 @@ function cellTint(verdict) {
   return "";
 }
 
+const JUDGED_RESULTS = ["pass", "model"];
+
+const judgeScriptTag = fileName =>
+  fileName ? `<script src="${escapeHTML(fileName)}"></script>` : "";
+
+// Fills [data-judge-*] placeholders from window.LLM_JUDGE_RESULTS, which the
+// judge results script defines, keyed by judgeId().
+const JUDGE_FILLER = `<script>
+(() => {
+  const results = window.LLM_JUDGE_RESULTS;
+  if (!results) {
+    return;
+  }
+  const entries = Object.entries(results).map(([id, r]) => {
+    const [scenario, modelChoice] = id.split("|");
+    return { id, scenario, modelChoice, r };
+  });
+  const oneDecimal = n => (Math.round(n * 10) / 10).toString();
+  const mean = values => values.reduce((a, b) => a + b, 0) / values.length;
+  for (const el of document.querySelectorAll("[data-judge-id]")) {
+    const r = results[el.dataset.judgeId];
+    el.textContent = r ? r.goal_completion + " / " + r.tool_accuracy : "not judged";
+    el.classList.toggle("muted", !r);
+  }
+  for (const el of document.querySelectorAll("[data-judge-reason]")) {
+    const r = results[el.dataset.judgeReason];
+    el.textContent = r ? r.reason || "(no reason given)" : "not judged";
+  }
+  for (const el of document.querySelectorAll("[data-judge-model]")) {
+    const matching = entries.filter(
+      e =>
+        e.modelChoice === el.dataset.judgeModel &&
+        (!el.dataset.judgeScenario || e.scenario === el.dataset.judgeScenario)
+    );
+    el.classList.toggle("muted", !matching.length);
+    el.textContent = matching.length
+      ? "goal " + oneDecimal(mean(matching.map(e => e.r.goal_completion))) +
+        " · tool " + oneDecimal(mean(matching.map(e => e.r.tool_accuracy))) +
+        " (" + matching.length + " judged)"
+      : "not judged";
+  }
+})();
+</script>`;
+
+const judgePending = (attrs, tag = "span") =>
+  `<${tag} ${attrs} class="muted" title="Filled in when ./mach eval runs the LLM judge">pending</${tag}>`;
+
 const STYLES = `
   body { font: 14px/1.5 system-ui, sans-serif; margin: 2em; color: #1c1b22; max-width: 110em; }
   h1 { margin-bottom: 0.2em; }
@@ -303,7 +380,7 @@ const STYLES = `
   .headline-investigate-browser, .headline-investigate-model { background: #ffe1e6; border-color: #c50042; }
   .headline-inconclusive { background: #fff4de; border-color: #a86500; }
   .headline-not-run { background: #f0f0f4; border-color: #8f8f9d; }
-  .models th, .models td:nth-child(2), .models td:nth-child(3) { white-space: nowrap; }
+  .models th, .models td:nth-child(2), .models td:nth-child(3), .models td:nth-child(4) { white-space: nowrap; }
   .hot-spot { border: 1px solid #cfcfd8; border-radius: 6px; padding: 8px 12px; }
   .hot-spot table { margin: 0.5em 0; }
   .hs-stats { font-weight: normal; color: #5b5b66; margin-inline-start: 0.5em; }
@@ -372,6 +449,7 @@ const LEGEND = `
   <table>
     <tr><th>Term</th><th>Meaning</th></tr>
     <tr><td><strong>Pass rate</strong></td><td>Passes out of judged attempts (passes, model and product failures). Infra failures and skipped attempts are left out.</td></tr>
+    <tr><td><strong>Quality (judge)</strong></td><td>Average LLM judge scores, 1 to 10, for goal completion and tool accuracy over passes and model failures. Informational: it does not change verdicts.</td></tr>
     <tr><td><strong>Tokens per pass</strong></td><td>All tokens divided by passes, so failures add to it</td></tr>
     <tr><td><strong>Picker choice</strong></td><td>The Smart Window model picker setting used to select the model</td></tr>
   </table>
@@ -424,6 +502,7 @@ function smokeCheckBanner(report, summaries) {
  * @param {{limit: number, used: number}} report.tokenBudget
  * @param {Map<string, string>} report.modelNames - Model name per choice.
  * @param {object[]} report.attempts - One outcome per attempt.
+ * @param {string} [report.judgeScriptFile] - See judgeResultsScript().
  * @returns {Promise<{path: string, summaries: object[]}>}
  */
 export async function writeScenarioReport(report) {
@@ -452,6 +531,7 @@ export async function writeScenarioReport(report) {
         <div>${s.passes}/${s.judged} judged attempts passed</div>
         <div class="muted">${failureMix(s)}</div>
         <div class="muted">${s.tokensPerPass === null ? "no passes" : `${formatTokens(s.tokensPerPass)} tokens per pass`}</div>
+        <div>Quality (judge): ${judgePending(`data-judge-model="${escapeHTML(s.modelChoice)}" data-judge-scenario="${escapeHTML(report.id)}"`)}</div>
         ${cardIssue(s)}
       </div>`
     )
@@ -513,6 +593,8 @@ export async function writeScenarioReport(report) {
     .map(a => {
       const toolCalls =
         a.toolCalls.map(c => c.function?.name).join(" → ") || "none";
+      const id = escapeHTML(judgeId(report.id, a.modelChoice, a.attempt));
+      const judged = JUDGED_RESULTS.includes(a.result);
       return `<tr class="result-${a.result}" data-model="${escapeHTML(a.modelChoice)}"
           data-result="${escapeHTML(a.result)}" data-verdict="${verdictByChoice.get(a.modelChoice)?.key ?? ""}">
         <td data-sort="${a.modelChoice}-${String(a.attempt).padStart(4, "0")}"><code>${escapeHTML(modelName(a))}</code></td>
@@ -520,6 +602,7 @@ export async function writeScenarioReport(report) {
         <td class="${a.result === "pass" ? "pass" : "fail"}">${escapeHTML(a.result)}</td>
         <td>${escapeHTML(a.reason)}</td>
         <td data-sort="${a.usage?.total ?? 0}">${usageCell(a)}</td>
+        <td>${judged ? judgePending(`data-judge-id="${id}"`) : '<span class="muted">not judged</span>'}</td>
         <td data-col="toolcalls">${escapeHTML(toolCalls)}</td>
         <td data-col="path">${escapeHTML(a.path ?? "")}</td>
         <td data-col="label">${escapeHTML(a.groups?.[0]?.label ?? "")}</td>
@@ -534,7 +617,12 @@ export async function writeScenarioReport(report) {
               · <strong>Turn:</strong> ${(a.durationMs / 1000).toFixed(1)}s
               · <strong>Rate-limit retries:</strong> ${a.retries ?? 0}</p>
             <p><strong>Reply:</strong> ${escapeHTML(a.reply || "(empty)")}</p>
-            <p><strong>Tokens per model round (input / output / cached):</strong> ${roundsText(a)}</p>
+            <p><strong>Judge:</strong> ${judged ? judgePending(`data-judge-reason="${id}"`) : "not judged"}</p>
+            <p><strong>Tokens per model round (input / output / cached):</strong> ${roundsText(a)}${
+              a.usage?.retryTokens
+                ? `, including ${formatTokens(a.usage.retryTokens)} from rate-limited tries`
+                : ""
+            }</p>
             <p><strong>Raw tool calls:</strong></p>
             <pre>${escapeHTML(JSON.stringify(a.toolCalls, null, 2))}</pre>
             <p><strong>Tab groups after the turn:</strong></p>
@@ -587,6 +675,7 @@ export async function writeScenarioReport(report) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHTML(report.title)}</title>
 <style>${STYLES}</style>
+${judgeScriptTag(report.judgeScriptFile)}
 </head>
 <body>
 <h1>${escapeHTML(report.title)}</h1>
@@ -658,6 +747,7 @@ ${LEGEND}
   <thead>
     <tr><th data-sortable>Model</th><th data-sortable>#</th><th data-sortable>Result</th>
         <th data-sortable>Reason</th><th data-sortable>Tokens in / out</th>
+        <th data-sortable title="LLM judge scores, 1 to 10">Judge (goal / tool)</th>
         <th data-sortable data-col="toolcalls">Tool calls</th><th data-sortable data-col="path">Path</th>
         <th data-sortable data-col="label">Group label</th><th data-sortable data-col="turn">Turn</th>
         <th data-sortable data-col="retries">Retries</th><th></th></tr>
@@ -743,6 +833,7 @@ ${LEGEND}
     });
   });
 </script>
+${JUDGE_FILLER}
 </body>
 </html>
 `;
@@ -860,11 +951,18 @@ function rollupHeadline(models, productFailures) {
  * @param {string} rollup.defaultModelChoice - The model users get by default.
  * @param {number} rollup.passRateGate
  * @param {{limit: number, used: number}} rollup.tokenBudget
+ * @param {string} [rollup.judgeScriptFile] - See judgeResultsScript().
+ * @param {string} [rollup.runStamp] - From runStamp(); the same stamp
+ *   overwrites the same roll-up.
+ * @param {number} [rollup.scenariosPlanned] - Shows a partial run banner
+ *   while fewer scenarios than this have finished.
  * @returns {Promise<string>} The path of the HTML roll-up.
  */
 export async function writeRollupReport(rollup) {
   const dir = await reportDir();
-  const baseName = `smartwindow-e2e-rollup-${timestamp()}`;
+  const baseName = `smartwindow-e2e-rollup-${rollup.runStamp ?? timestamp()}`;
+  const finished = rollup.scenarios.length;
+  const partial = finished < (rollup.scenariosPlanned ?? finished);
   const scenarioSummaries = rollup.scenarios.map(scenario => ({
     scenario,
     summaries: summarizeScenario(
@@ -1006,7 +1104,7 @@ export async function writeRollupReport(rollup) {
     footerRow(
       "Quality (judge)",
       m =>
-        `<td data-label="${escapeHTML(m.model)}" class="muted" title="LLM judge scores are not available yet">pending</td>`
+        `<td data-label="${escapeHTML(m.model)}">${judgePending(`data-judge-model="${escapeHTML(m.modelChoice)}"`)}</td>`
     ),
   ].join("");
   const modelRows = models
@@ -1015,6 +1113,7 @@ export async function writeRollupReport(rollup) {
         <th scope="row"><code>${escapeHTML(m.model)}</code>${m.isDefault ? '<span class="tag">default</span>' : ""}</th>
         <td data-label="Verdict">${verdictBadge(m.verdict)}${verdictNote(m.verdict)}</td>
         <td data-label="Passed">${m.passes}/${m.judged} · ${percent(m.passRate)}</td>
+        <td data-label="Quality (judge)">${judgePending(`data-judge-model="${escapeHTML(m.modelChoice)}"`)}</td>
         <td data-label="Top issue">${m.topIssue ? escapeHTML(m.topIssue.text) : '<span class="muted">none</span>'}</td>
       </tr>`
     )
@@ -1055,6 +1154,12 @@ export async function writeRollupReport(rollup) {
       ? `${health.budgetSkipped} attempts skipped for budget`
       : "",
   ].filter(Boolean);
+  let runStatus = "Run complete";
+  if (stoppedEarly.length) {
+    runStatus = `<strong class="fail">Stopped early</strong>: ${escapeHTML(stoppedEarly.join("; "))}`;
+  } else if (partial) {
+    runStatus = "Run not finished";
+  }
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -1063,17 +1168,24 @@ export async function writeRollupReport(rollup) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Smart Window E2E health roll-up</title>
 <style>${STYLES}</style>
+${judgeScriptTag(rollup.judgeScriptFile)}
 </head>
 <body>
 <h1>Smart Window E2E health roll-up</h1>
 <p class="subtitle">${escapeHTML(new Date().toISOString())} · Firefox ${escapeHTML(Services.appinfo.version)} (${escapeHTML(Services.appinfo.appBuildID)})
   · ${formatTokens(health.tokensUsed)}${health.tokenLimit ? ` of ${formatTokens(health.tokenLimit)}` : ""} tokens<br>
-  ${stoppedEarly.length ? `<strong class="fail">Stopped early</strong>: ${escapeHTML(stoppedEarly.join("; "))}` : "Run complete"}
+  ${runStatus}
   · ${health.infraFailures} infra failures · ${health.rateLimitRetries} rate-limit retries</p>
+${
+  partial
+    ? `<div class="banner" role="alert"><strong>Partial run: ${finished} of ${rollup.scenariosPlanned} scenarios finished.</strong>
+    This roll-up is rewritten after each scenario. If the run has ended, it stopped early (for example a harness timeout), and the other scenarios did not run.</div>`
+    : ""
+}
 <div class="headline headline-${headline.key}" role="status"><strong>${escapeHTML(headline.label)}.</strong> ${escapeHTML(headline.text)}</div>
 
 <table class="models stack">
-  <thead><tr><th>Model</th><th>Verdict</th><th>Passed</th><th>Top issue</th></tr></thead>
+  <thead><tr><th>Model</th><th>Verdict</th><th>Passed</th><th>Quality (judge)</th><th>Top issue</th></tr></thead>
   <tbody>${modelRows}</tbody>
 </table>
 
@@ -1087,6 +1199,7 @@ export async function writeRollupReport(rollup) {
 <h2>Hot spots: scenarios to check</h2>
 ${hotSpotList}
 ${LEGEND}
+${JUDGE_FILLER}
 </body>
 </html>
 `;
@@ -1100,6 +1213,8 @@ ${LEGEND}
       buildID: Services.appinfo.appBuildID,
     },
     passRateGate: rollup.passRateGate,
+    scenariosFinished: finished,
+    scenariosPlanned: rollup.scenariosPlanned ?? finished,
     headline,
     health,
     models: models.map(m => ({
