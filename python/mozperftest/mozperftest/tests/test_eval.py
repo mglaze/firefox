@@ -65,6 +65,24 @@ class MockChrfEval:
         }
 
 
+class MockJudgeEvalWithSubtests:
+    requirements = []
+
+    def __init__(self, log, config):
+        pass
+
+    def run(self, payloads):
+        return [
+            {
+                "name": "goal_completion",
+                "values": [p["score"] for p in payloads if p["model"] == model],
+                "lowerIsBetter": False,
+                "subtest": model,
+            }
+            for model in ("model-a", "model-b")
+        ]
+
+
 def get_mock_eval_class(name, path):
     """Helper function for mocking load_class_from_path with multiple eval types."""
     if name == "TranslationsBleu":
@@ -445,6 +463,54 @@ def test_eval_metrics_handles_list_result(mock_load_class, tmp_path):
         results = result_metadata.get_results()
         assert len(results) == 1
         assert results[0]["name"] == "bleu"
+
+    finally:
+        shutil.rmtree(mach_cmd._mach_context.state_dir)
+
+
+@mock.patch(
+    "mozperftest.metrics.eval.load_class_from_path",
+    return_value=MockJudgeEvalWithSubtests,
+)
+@mock.patch("mozperftest.test.mochitest.ON_TRY", new=False)
+@mock.patch("mozperftest.utils.ON_TRY", new=False)
+def test_eval_metrics_keeps_eval_subtests(mock_load_class, tmp_path):
+    mach_cmd, metadata, env = eval_metrics_running_env(
+        tests=[],
+        output=str(tmp_path),
+    )
+
+    metadata.script = {
+        "options": {
+            "default": {
+                "evaluations": {
+                    "LlmJudge": {"shouldAlert": False},
+                }
+            }
+        }
+    }
+
+    metadata.add_eval_payload(
+        "test_judge.js",
+        [
+            {"model": "model-a", "score": 8},
+            {"model": "model-b", "score": 4},
+            {"model": "model-a", "score": 10},
+        ],
+    )
+
+    try:
+        eval_metrics_layer = env.layers[METRICS].layers[0]
+        results = eval_metrics_layer.run(metadata).get_results()
+        assert len(results) == 1
+        assert results[0]["value"] == pytest.approx(22 / 3)
+
+        eval_data = json.loads((tmp_path / "eval-goal_completion.json").read_text())
+        assert eval_data == [
+            {"test_judge.js / model-a": 8},
+            {"test_judge.js / model-a": 10},
+            {"test_judge.js / model-b": 4},
+        ]
 
     finally:
         shutil.rmtree(mach_cmd._mach_context.state_dir)

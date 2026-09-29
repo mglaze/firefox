@@ -72,7 +72,12 @@ class EvalMetrics(Layer):
                         raise EvalMetricsResultError(
                             f"Eval result for {metric_name} missing lowerIsBetter"
                         )
-                    result["subtest"] = test_name
+                    # Evals can split a test's values into subtests, for
+                    # example one per model.
+                    subtest = result.get("subtest")
+                    result["subtest"] = (
+                        f"{test_name} / {subtest}" if subtest else test_name
+                    )
                     per_metric_results.setdefault(metric_name, []).append(result)
                     metric_to_config[metric_name] = eval_config
 

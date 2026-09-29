@@ -609,6 +609,7 @@ async function runScenario(
         MLTestUtils.reportEvalData({
           id: judgeId(scenario.id, modelChoice, attempt),
           results_script: judgeScript.path,
+          subtest: outcome.model,
           messages: renderPrompt(groupTabsEvalPrompt, {
             instruction: scenario.instruction,
             open_tabs: JSON.stringify(tabView.openTabs, null, 2),
@@ -788,7 +789,9 @@ add_task(async function test_group_recipe_tabs() {
     `Tokens used by the run: ${budget.used.toLocaleString()}${budget.limit ? ` of a ${budget.limit.toLocaleString()} budget` : " (no budget)"}`
   );
   Assert.ok(
-    results.some(r => r.attempts.length),
+    results.some(r =>
+      r.attempts.some(a => a.result !== "budget" && a.result !== "smoke-check")
+    ),
     "At least one attempt ran; model misses are reported, not failed"
   );
 });

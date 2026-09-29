@@ -188,6 +188,9 @@ class LlmJudge(_LlmJudge):
         # This base implementation just returns the raw LLM response content for each payload.
         # Subclasses can implement specific prompting and parsing logic as needed.
         results = {}
+        # Values per (key, subtest); payloads can name a subtest, such as the
+        # model under test, to get a separate Perfherder series for it.
+        subtest_results = {}
         eval_config = {}
         results_scripts = {}
         for payload in payloads:
@@ -224,6 +227,9 @@ class LlmJudge(_LlmJudge):
                         f"Value for '{key}' is below the minimum threshold of {threshold_min}: {value}"
                     )
                 results.setdefault(key, []).append(value)
+                subtest_results.setdefault((key, payload.get("subtest")), []).append(
+                    value
+                )
             if errors:
                 raise AssertionError(
                     "LLM judge evaluation failed:\n"
@@ -259,20 +265,23 @@ class LlmJudge(_LlmJudge):
         # construct return values for perfherder
         return_results = []
         for key, values in results.items():
-            if isinstance(values[0], (int, float)):
-                return_results.append({
-                    "name": key,
-                    "values": values,
-                    "lowerIsBetter": False,
-                    "shouldAlert": eval_config.get(key, {}).get("shouldAlert", False),
-                    "alertThreshold": eval_config.get(key, {}).get(
-                        "alertThreshold", None
-                    ),
-                })
-            else:
+            if not isinstance(values[0], (int, float)):
                 self.log(
                     f"LLM judge result for key '{key}' is not numeric and will not be included in perfherder metrics: {values}"
                 )
+        for (key, subtest), values in subtest_results.items():
+            if not isinstance(values[0], (int, float)):
+                continue
+            result = {
+                "name": key,
+                "values": values,
+                "lowerIsBetter": False,
+                "shouldAlert": eval_config.get(key, {}).get("shouldAlert", False),
+                "alertThreshold": eval_config.get(key, {}).get("alertThreshold", None),
+            }
+            if subtest:
+                result["subtest"] = subtest
+            return_results.append(result)
 
         return return_results
 

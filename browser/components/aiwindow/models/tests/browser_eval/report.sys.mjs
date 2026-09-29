@@ -196,6 +196,7 @@ export function topIssue(attempts) {
  */
 export function summarizeModel(attempts, planned, passRateGate, name) {
   const count = result => attempts.filter(a => a.result === result).length;
+  const turns = attempts.map(a => a.durationMs).filter(ms => ms > 0);
   const counts = {
     passes: count("pass"),
     modelFailures: count("model"),
@@ -217,7 +218,8 @@ export function summarizeModel(attempts, planned, passRateGate, name) {
     verdict: computeVerdict(counts, planned, passRateGate),
     confirmationPath: attempts.filter(a => a.path === "confirmation").length,
     directPath: attempts.filter(a => a.path === "direct").length,
-    medianSeconds: median(attempts.map(a => a.durationMs)) / 1000,
+    // Only attempts that ran a turn; skipped and early infra attempts are 0.
+    medianSeconds: turns.length ? median(turns) / 1000 : null,
     rateLimitRetries: attempts.reduce((sum, a) => sum + (a.retries ?? 0), 0),
     tokens,
     tokensPerAttempt: ran ? Math.round(tokens.total / ran) : 0,
@@ -326,7 +328,7 @@ const JUDGE_FILLER = `<script>
     el.textContent = matching.length
       ? "goal " + oneDecimal(mean(matching.map(e => e.r.goal_completion))) +
         " · tool " + oneDecimal(mean(matching.map(e => e.r.tool_accuracy))) +
-        " (" + matching.length + " judged)"
+        ("judgeCompact" in el.dataset ? "" : " (" + matching.length + " judged)")
       : "not judged";
   }
 })();
@@ -555,7 +557,7 @@ export async function writeScenarioReport(report) {
         <th scope="row"><code>${escapeHTML(s.model)}</code></th>
         <td data-label="Picker choice">${escapeHTML(s.modelChoice)}</td>
         <td data-label="Confirmation / direct">${s.confirmationPath} / ${s.directPath}</td>
-        <td data-label="Median turn">${s.medianSeconds.toFixed(1)}s</td>
+        <td data-label="Median turn">${s.medianSeconds === null ? "n/a" : `${s.medianSeconds.toFixed(1)}s`}</td>
         <td data-label="Rate-limit retries">${s.rateLimitRetries}</td>
         <td data-label="Tokens in / out">${formatTokens(s.tokens.input)} / ${formatTokens(s.tokens.output)} (${formatTokens(s.tokens.cached)} cached)</td>
         <td data-label="Tokens per attempt">${formatTokens(s.tokensPerAttempt)}</td>
@@ -1081,8 +1083,11 @@ export async function writeRollupReport(rollup) {
           if (!summary) {
             return `<td ${label} class="muted">not selected</td>`;
           }
+          const judgeLine = summary.judged
+            ? `<div class="rate-line">Judge: ${judgePending(`data-judge-model="${escapeHTML(m.modelChoice)}" data-judge-scenario="${escapeHTML(s.id)}" data-judge-compact`)}</div>`
+            : "";
           return `<td ${label} class="${cellTint(summary.verdict)}">${verdictBadge(summary.verdict)}
-            <div class="rate-line">${percent(summary.passRate)} · ${summary.passes}/${summary.judged}</div></td>`;
+            <div class="rate-line">${percent(summary.passRate)} · ${summary.passes}/${summary.judged}</div>${judgeLine}</td>`;
         })
         .join("");
       return `<tr>
