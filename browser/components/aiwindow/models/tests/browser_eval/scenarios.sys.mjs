@@ -150,7 +150,7 @@ export const SCENARIOS = [
   {
     id: "group-tabs-basic",
     tier: "basic",
-    title: "Smart Window E2E: group recipe tabs",
+    title: "Smart Window AI Quality: group recipe tabs",
     instruction: "Group my recipe tabs",
     tabs: [LASAGNA, COOKIES, FLIGHTS],
     expectedUrls: [LASAGNA, COOKIES],
@@ -161,7 +161,7 @@ export const SCENARIOS = [
     // recipes, so the model has to tell "recipe" apart from "food-related".
     id: "group-tabs-near-miss",
     tier: "advanced",
-    title: "Smart Window E2E: group recipe tabs among food-related tabs",
+    title: "Smart Window AI Quality: group recipe tabs among food-related tabs",
     instruction: "Group my food related recipe tabs",
     tabs: [
       LASAGNA,
@@ -175,7 +175,7 @@ export const SCENARIOS = [
   },
   catalogScenario({
     id: "group-tabs-made-up-brands",
-    title: "Smart Window E2E: group recipe tabs, all made-up brands",
+    title: "Smart Window AI Quality: group recipe tabs, all made-up brands",
     instruction: "Group my recipe tabs",
     seed: 101,
     required: ["rec-f01", "rec-f03", "rec-f07"],
@@ -197,7 +197,8 @@ export const SCENARIOS = [
     // The only made-up brand is a required recipe, to see whether the model
     // leans on recognizing brands.
     id: "group-tabs-real-brands-one-made-up",
-    title: "Smart Window E2E: group recipe tabs, real brands and one made-up",
+    title:
+      "Smart Window AI Quality: group recipe tabs, real brands and one made-up",
     instruction: "Group my recipe tabs",
     seed: 202,
     required: ["rec-r01", "rec-r03", "rec-f05"],
@@ -217,7 +218,7 @@ export const SCENARIOS = [
   }),
   catalogScenario({
     id: "group-tabs-mixed-unrelated",
-    title: "Smart Window E2E: group recipe tabs among unrelated tabs",
+    title: "Smart Window AI Quality: group recipe tabs among unrelated tabs",
     instruction: "Group my recipe tabs",
     seed: 303,
     required: ["rec-r02", "rec-f02", "rec-r06"],

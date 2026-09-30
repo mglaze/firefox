@@ -636,6 +636,7 @@ add_task(async function test_group_recipe_tabs() {
       judgeScriptFile: judgeScript.fileName,
       runStamp: stamp,
       scenariosPlanned: scenarios.length,
+      feature: "Tab grouping",
     });
   let rollupPath;
   try {

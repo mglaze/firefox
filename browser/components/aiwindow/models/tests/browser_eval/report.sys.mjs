@@ -268,8 +268,37 @@ function summarizeScenario(attempts, planned, passRateGate, modelNames) {
 const failureMix = s =>
   `${s.modelFailures} model · ${s.productFailures} browser · ${s.infraFailures} infra`;
 
-const verdictBadge = verdict =>
-  `<span class="verdict verdict-${verdict.key}" title="${escapeHTML(verdict.detail)}">${escapeHTML(verdict.label)}</span>`;
+// What each verdict means and who acts on it; shown when a pill is tapped and
+// in the help drawer.
+const VERDICT_HELP = {
+  healthy: {
+    meaning: "Pass rate at or above the gate and no browser failures.",
+    who: "Nobody",
+  },
+  "investigate-browser": {
+    meaning: "Firefox did not do what the model asked, at least once.",
+    who: "Firefox / Smart Window front end",
+  },
+  "investigate-model": {
+    meaning: "Pass rate under the gate because of model misses.",
+    who: "Models team",
+  },
+  inconclusive: {
+    meaning: "Too few judged attempts, usually because of backend errors.",
+    who: "MLPA owners, if it keeps happening",
+  },
+  "not-run": {
+    meaning: "Every attempt was skipped (token budget or smoke check).",
+    who: "Nobody; rerun if needed",
+  },
+};
+
+const verdictBadge = verdict => {
+  const { meaning, who } = VERDICT_HELP[verdict.key];
+  const explanation = `${meaning}${verdict.detail ? ` Here: ${verdict.detail}.` : ""} Who looks: ${who}.`;
+  return `<button type="button" class="verdict verdict-${verdict.key}" data-explain-title="${escapeHTML(verdict.label)}"
+    data-explain="${escapeHTML(explanation)}" data-help-section="help-verdicts">${escapeHTML(verdict.label)}</button>`;
+};
 
 function cardIssue(summary) {
   if (summary.topIssue) {
@@ -285,6 +314,49 @@ const verdictNote = verdict =>
   verdict.detail
     ? `<div class="verdict-note">${escapeHTML(verdict.detail)}</div>`
     : "";
+
+// One identity color per model, by picker choice, so a model looks the same
+// in every table and report. Kept clear of the red, amber and green used for
+// status.
+const MODEL_COLORS = [
+  { accent: "#0060df", tint: "#e8f0fe" },
+  { accent: "#7542e5", tint: "#f1ebfd" },
+  { accent: "#00767a", tint: "#e0f2f2" },
+  { accent: "#4a5a8a", tint: "#eceff6" },
+];
+
+/**
+ * @param {string} modelChoice
+ * @returns {string} A style attribute setting the model's color variables.
+ */
+function modelStyle(modelChoice) {
+  const index = Math.max(0, Number(modelChoice) - 1) % MODEL_COLORS.length;
+  const { accent, tint } = MODEL_COLORS[index];
+  return `style="--model-accent: ${accent}; --model-tint: ${tint}"`;
+}
+
+/**
+ * @param {object[]} verdicts - One scenario's verdicts across models.
+ * @returns {string} "investigate", "inconclusive", "healthy" or "not-run":
+ *   the most serious, used to color the scenario.
+ */
+function scenarioStatus(verdicts) {
+  const keys = verdicts.map(verdict => verdict.key);
+  if (keys.some(key => key.startsWith("investigate"))) {
+    return "investigate";
+  }
+  if (keys.includes("inconclusive")) {
+    return "inconclusive";
+  }
+  return keys.includes("healthy") ? "healthy" : "not-run";
+}
+
+const STATUS_LABELS = {
+  investigate: "Needs investigation",
+  inconclusive: "Inconclusive",
+  healthy: "Healthy",
+  "not-run": "Not run",
+};
 
 function cellTint(verdict) {
   if (verdict.key.startsWith("investigate")) {
@@ -364,18 +436,27 @@ const JUDGE_FILLER = `<script>
   const data = JSON.parse(dataElement.textContent);
   const oneDecimal = n => (Math.round(n * 10) / 10).toString();
   const mean = values => values.reduce((a, b) => a + b, 0) / values.length;
+  const bandText = {
+    good: "8 and up: good.",
+    fair: "5 to 7: the right items with minor issues.",
+    poor: "4 and under: a real problem, such as a wrong or missing item.",
+  };
   const chip = (key, score) => {
-    const span = document.createElement("span");
+    const button = document.createElement("button");
     let band = "poor";
     if (score >= 8) {
       band = "good";
     } else if (score >= 5) {
       band = "fair";
     }
-    span.className = "score score-" + band;
-    span.title = data.labels[key].description;
-    span.textContent = data.labels[key].label + " " + oneDecimal(score);
-    return span;
+    button.type = "button";
+    button.className = "score score-" + band;
+    button.textContent = data.labels[key].label + " " + oneDecimal(score);
+    button.dataset.explainTitle = data.labels[key].label + " " + oneDecimal(score);
+    button.dataset.explain = data.labels[key].description + " " + bandText[band] +
+      " From the LLM judge; it does not change the verdict.";
+    button.dataset.helpSection = "help-judge";
+    return button;
   };
   const showScores = (el, scores, judged) => {
     el.textContent = "";
@@ -428,7 +509,7 @@ const JUDGE_FILLER = `<script>
     }
     const tally = agreement[scenario];
     if (tally.agree / tally.total < data.gate) {
-      el.textContent = "Judge not calibrated (" + Math.round((100 * tally.agree) / tally.total) + "% agreement)";
+      el.textContent = "Not calibrated (" + Math.round((100 * tally.agree) / tally.total) + "% agreement)";
       el.title = "The judge agrees with the browser check on fewer than " + Math.round(data.gate * 100) +
         "% of this scenario's judged attempts, so its scores are hidden here. Attempt rows still show them.";
       continue;
@@ -449,6 +530,7 @@ const STYLES = `
   body { font: 14px/1.5 system-ui, sans-serif; margin: 2em; color: #1c1b22; max-width: 110em; }
   h1 { margin-bottom: 0.2em; }
   .subtitle { color: #5b5b66; margin-top: 0; }
+  .subtitle strong { color: #1c1b22; }
   table { border-collapse: collapse; margin: 1em 0; width: 100%; }
   th, td { border: 1px solid #cfcfd8; padding: 6px 8px; text-align: start; vertical-align: top; }
   th { background: #f0f0f4; }
@@ -462,11 +544,38 @@ const STYLES = `
   .verdict-inconclusive { background: #fff4de; color: #7a4a00; }
   .verdict-not-run { background: #f0f0f4; color: #5b5b66; }
   .cards { display: flex; flex-wrap: wrap; gap: 1em; margin: 1em 0; }
-  .legend table { width: auto; margin: 0.5em 0 1em; }
-  .legend h3 { font-size: 1em; margin: 1em 0 0; }
+  button.verdict, button.score { border: none; font: inherit; cursor: pointer; }
+  button.verdict { font-weight: 600; }
+  button.score { font-size: 0.9em; font-weight: 600; }
+  /* A small "?" badge marks pills that explain themselves when tapped. */
+  button.verdict::after, button.score::after, .tap-hint {
+    content: "?"; display: inline-block; width: 1.2em; height: 1.2em; line-height: 1.2em; margin-inline-start: 0.4em;
+    border-radius: 50%; background: rgb(255 255 255 / 0.7); border: 1px solid currentColor; font-size: 0.75em; text-align: center; vertical-align: 0.1em;
+  }
+  .tap-hint { color: #5b5b66; }
+  button.verdict:hover, button.score:hover { box-shadow: 0 0 0 2px currentColor; }
+  button.verdict:focus-visible, button.score:focus-visible, .help-button:focus-visible { outline: 2px solid #0061e0; outline-offset: 2px; }
+  .help-button:focus-visible { outline-color: #1c1b22; }
+  .help-button { position: fixed; top: 12px; inset-inline-end: 12px; z-index: 5; display: inline-flex; align-items: center; gap: 0.4em; font: inherit; font-weight: 600; color: #fff; background: #0061e0; border: none; border-radius: 16px; padding: 5px 14px; cursor: pointer; box-shadow: 0 2px 8px rgb(0 0 0 / 0.2); }
+  .help-button:hover { background: #0250bb; }
+  /* Same circle as the "?" badge on tappable pills. */
+  .help-icon { display: inline-block; width: 1.2em; height: 1.2em; line-height: 1.2em; border: 1px solid currentColor; border-radius: 50%; font-size: 0.75em; text-align: center; }
+  body.help-open { margin-inline-end: calc(min(460px, 100vw) + 2em); }
+  .help-drawer { position: fixed; inset-block: 0; inset-inline-start: auto; inset-inline-end: 0; margin: 0; width: min(460px, 100vw); height: 100vh; max-height: none; box-sizing: border-box; border: none; border-inline-start: 1px solid #cfcfd8; padding: 0 16px 16px; overflow-y: auto; background: #fff; color: #1c1b22; box-shadow: -4px 0 16px rgb(0 0 0 / 0.12); z-index: 10; }
+  .help-drawer section { scroll-margin-top: 64px; }
+  .help-drawer h3 { font-size: 1em; margin: 1.25em 0 0.25em; }
+  .help-table { width: 100%; margin: 0.5em 0 1em; font-size: 0.9em; }
+  .help-table th, .help-table td { padding: 5px 7px; }
+  .help-table tbody tr:nth-child(even) td, .help-table tr:nth-child(even) > td { background: #f9f9fb; }
+  .help-table th[scope="row"] { background: #f9f9fb; font-weight: 600; white-space: nowrap; }
+  .help-table thead th { position: static; }
+  .help-header { position: sticky; top: 0; background: #fff; display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #e0e0e6; }
+  .help-header h2 { margin: 0; font-size: 1.15em; }
+  .help-close { font: inherit; background: none; border: 1px solid #8f8f9d; border-radius: 4px; padding: 2px 10px; cursor: pointer; }
+  .explain { position: fixed; inset: auto; margin: 0; max-width: min(22em, calc(100vw - 16px)); padding: 10px 12px; border: 1px solid #cfcfd8; border-radius: 6px; background: #fff; color: #1c1b22; box-shadow: 0 4px 16px rgb(0 0 0 / 0.15); }
+  .explain p { margin: 4px 0 6px; }
   .matrix tbody th, .matrix tfoot th { background: #f9f9fb; font-weight: 600; white-space: nowrap; }
   .matrix td { overflow-wrap: anywhere; }
-  .matrix tfoot tr:first-child > * { border-top: 2px solid #8f8f9d; }
   .card { border: 1px solid #cfcfd8; border-radius: 6px; padding: 12px 16px; min-width: 16em; }
   .card h3 { margin: 0 0 6px; font-size: 1em; }
   .card .rate { font-size: 1.6em; font-weight: 600; }
@@ -489,6 +598,25 @@ const STYLES = `
   .score-fair { background: #fff4de; color: #7a4a00; }
   .score-poor { background: #ffe1e6; color: #8f0030; }
   .judged-count { color: #5b5b66; font-size: 0.85em; white-space: nowrap; }
+  .model-dot::before { content: ""; display: inline-block; width: 0.65em; height: 0.65em; border-radius: 50%; background: var(--model-accent); margin-inline-end: 0.45em; vertical-align: 0.05em; }
+  .model-row th[scope="row"] { background: var(--model-tint); border-inline-start: 4px solid var(--model-accent); }
+  th.model-head { background: var(--model-tint); border-bottom: 3px solid var(--model-accent); }
+  .model-card { border-top: 4px solid var(--model-accent); }
+  .matrix tr.overall-row > * { background: #f0f0f4; font-weight: 600; border-bottom: 2px solid #8f8f9d; }
+  .matrix-narrow { display: none; }
+  .overall-rates ul, .scenario-models { list-style: none; padding: 0; margin: 0.4em 0; }
+  .overall-rates li { padding: 2px 0; }
+  .scenario-block { border: 1px solid; border-inline-start-width: 6px; border-radius: 6px; padding: 4px 12px; margin: 0.6em 0; }
+  .scenario-block.status-investigate { background: #fff0f3; border-color: #c50042; }
+  .scenario-block.status-inconclusive { background: #fffaf0; border-color: #a86500; }
+  .scenario-block.status-healthy { background: #edfbf3; border-color: #017a40; }
+  .scenario-block.status-not-run { background: #f9f9fb; border-color: #cfcfd8; }
+  .scenario-block summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em; }
+  .scenario-block summary::before { content: "▸"; display: inline-block; transition: transform 0.15s; }
+  .scenario-block[open] summary::before { transform: rotate(90deg); }
+  .scenario-block .status-label { margin-inline-start: auto; font-size: 0.85em; }
+  .scenario-models li { padding: 8px 0; border-top: 1px solid rgb(0 0 0 / 0.08); }
+  .scenario-models li > div { margin-top: 4px; }
   .tag { display: inline-block; border: 1px solid #8f8f9d; border-radius: 4px; padding: 0 5px; font-size: 0.85em; font-weight: 600; margin-inline-start: 4px; }
   .headline { border: 1px solid; border-radius: 6px; padding: 12px 16px; margin: 1em 0; font-size: 1.1em; }
   .headline-healthy { background: #d7f5e3; border-color: #017a40; }
@@ -519,7 +647,11 @@ const STYLES = `
     .matrix tfoot tr:first-child > * { border: none; border-top: 1px solid #e0e0e6; }
     table.stack tr > :first-child { border-top: none; border-radius: 6px 6px 0 0; }
     table.stack td[data-label]::before { content: attr(data-label); display: block; font-size: 0.9em; font-weight: 600; color: #5b5b66; }
-    .matrix tbody th, .matrix tfoot th, .models th, .models td:nth-child(n) { white-space: normal; }
+    .matrix tbody th, .models th, .models td:nth-child(n) { white-space: normal; }
+    .matrix-wide { display: none; }
+    .matrix-narrow { display: block; }
+    table.stack tr.model-row { border-inline-start: 4px solid var(--model-accent); }
+    table.stack tr.model-row > th[scope="row"] { border-inline-start: none; }
     .card { flex: 1 1 100%; max-width: none; min-width: 0; }
     .controls { flex-direction: column; align-items: stretch; gap: 0.25em; }
     .controls label { display: flex; align-items: center; gap: 0.5em; min-height: 44px; }
@@ -528,51 +660,166 @@ const STYLES = `
     select, .touch { min-height: 44px; }
     .touch { display: inline-flex; align-items: center; }
     summary { padding-block: 12px; }
+    .help-drawer { inset-block-start: auto; inset-inline: 0; width: 100vw; height: auto; max-height: 80vh; border-inline-start: none; border-top: 1px solid #cfcfd8; border-radius: 12px 12px 0 0; box-shadow: 0 -4px 16px rgb(0 0 0 / 0.15); }
+    .help-drawer::backdrop { background: rgb(0 0 0 / 0.3); }
+    .help-drawer { max-width: none; }
+    .help-button { top: auto; bottom: 16px; min-height: 44px; }
+    body { padding-bottom: 72px; }
+    button.verdict, button.score { min-height: 32px; }
     .scroll { overflow-x: auto; }
     #attempts th:first-child, #attempts td:first-child { position: sticky; inset-inline-start: 0; z-index: 1; }
   }
 `;
 
-const LEGEND = `
-<details class="legend">
-  <summary>How to read this report</summary>
-  <h3>Verdicts (per model)</h3>
-  <table>
-    <tr><th>Verdict</th><th>Meaning</th><th>Who looks</th></tr>
-    <tr><td><span class="verdict verdict-healthy">Healthy</span></td>
-        <td>Pass rate at or above the gate and no browser failures</td><td>Nobody</td></tr>
-    <tr><td><span class="verdict verdict-investigate-browser">Investigate: browser</span></td>
-        <td>Firefox did not do what the model asked, at least once</td><td>Firefox / Smart Window front end</td></tr>
-    <tr><td><span class="verdict verdict-investigate-model">Investigate: model</span></td>
-        <td>Pass rate under the gate because of model misses</td><td>Models team</td></tr>
-    <tr><td><span class="verdict verdict-inconclusive">Inconclusive</span></td>
-        <td>Too few judged attempts, usually because of backend errors</td><td>MLPA owners, if it keeps happening</td></tr>
-    <tr><td><span class="verdict verdict-not-run">Not run</span></td>
-        <td>Every attempt was skipped (budget or smoke check)</td><td>Nobody; rerun if needed</td></tr>
-  </table>
-  <h3>Attempt results</h3>
-  <table>
-    <tr><th>Result</th><th>Meaning</th><th>In pass rate?</th></tr>
-    <tr><td><strong>pass</strong></td><td>Exactly the expected tabs were grouped</td><td>Yes</td></tr>
-    <tr><td><strong>model</strong></td><td>The model did not call the tool or grouped the wrong tabs</td><td>Yes</td></tr>
-    <tr><td><strong>product</strong></td><td>Firefox did not do what the model asked (request never sent, aborted, no group after confirming)</td><td>Yes</td></tr>
-    <tr><td><strong>infra</strong></td><td>MLPA, auth or network errors</td><td>No</td></tr>
-    <tr><td><strong>budget</strong></td><td>Not run: the token budget was reached</td><td>No</td></tr>
-    <tr><td><strong>smoke-check</strong></td><td>Not run: the model did not pass the smoke check scenario</td><td>No</td></tr>
-  </table>
-  <h3>Terms</h3>
-  <table>
-    <tr><th>Term</th><th>Meaning</th></tr>
-    <tr><td><strong>Pass rate</strong></td><td>Passes out of judged attempts (passes, model and product failures). Infra failures and skipped attempts are left out.</td></tr>
-    <tr><td><strong>Quality (judge)</strong></td><td>An LLM second opinion, scored 1 to 10, on passes and model failures. It does not change verdicts.
-      <strong>Goal completion</strong>: did the end state match the request (every requested item handled and nothing else touched)? Any wrong or missing item scores 4 or less.
-      <strong>Tool accuracy</strong>: did the assistant use the tools correctly? It ignores which items were picked, so it can be 10 on a failure; it appears on attempts only.
-      Summaries show each scenario's main score, and only when the judge agrees with the browser check on at least 90% of that scenario's attempts; otherwise they say "Judge not calibrated".
-      Colors: <span class="score score-good">8 and up</span> <span class="score score-fair">5 to 7</span> <span class="score score-poor">4 and under</span></td></tr>
-    <tr><td><strong>Tokens per pass</strong></td><td>All tokens divided by passes, so failures add to it</td></tr>
-    <tr><td><strong>Picker choice</strong></td><td>The Smart Window model picker setting used to select the model</td></tr>
-  </table>
-</details>`;
+const HELP_BUTTON = `<button type="button" id="help-open" class="help-button" aria-haspopup="dialog" aria-controls="help"><span class="help-icon" aria-hidden="true">?</span>How to read</button>`;
+
+// The help drawer (a side panel on desktop, a bottom sheet on narrow screens)
+// and the popover that explains a tapped verdict pill or judge chip.
+const HELP = `
+<dialog id="help" class="help-drawer" aria-labelledby="help-title">
+  <div class="help-header">
+    <h2 id="help-title">How to read this report</h2>
+    <button type="button" class="help-close">Close</button>
+  </div>
+  <p class="muted">Tap a verdict or score (the ones marked with <span class="tap-hint">?</span>) for a short explanation.</p>
+  <section id="help-page">
+    <h3>The page</h3>
+    <table class="help-table">
+      <tr><th scope="row">Model table</th><td>Each model's verdict, how many judged attempts passed and its most common problem.</td></tr>
+      <tr><th scope="row">Hot spots</th><td>Scenarios with the most failures and the models that failed them. "View failures" opens those attempts.</td></tr>
+      <tr><th scope="row">Scenarios by model</th><td>Each scenario's verdict per model, its pass rate and the judge's main score.</td></tr>
+      <tr><th scope="row">All attempts</th><td>Every attempt in a scenario report, with filters. "details" shows the tool calls, reply and tab groups.</td></tr>
+    </table>
+  </section>
+  <section id="help-verdicts">
+    <h3>Verdicts (per model)</h3>
+    <table class="help-table">
+      <thead><tr><th>Verdict</th><th>Meaning</th><th>Who looks</th></tr></thead>
+      <tbody>
+      ${Object.entries(VERDICT_HELP)
+        .map(
+          ([key, { meaning, who }]) =>
+            `<tr><th scope="row"><span class="verdict verdict-${key}">${VERDICTS[key]}</span></th><td>${meaning}</td><td>${who}</td></tr>`
+        )
+        .join("")}
+      </tbody>
+    </table>
+  </section>
+  <section id="help-results">
+    <h3>Attempt results</h3>
+    <table class="help-table">
+      <thead><tr><th>Result</th><th>Meaning</th><th>In pass rate</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">pass</th><td>Exactly the expected tabs were grouped.</td><td>Yes</td></tr>
+        <tr><th scope="row">model</th><td>The model did not call the tool or grouped the wrong tabs.</td><td>Yes</td></tr>
+        <tr><th scope="row">product</th><td>Firefox did not do what the model asked: request not sent or aborted, no group after confirming, or a requested tab left out.</td><td>Yes</td></tr>
+        <tr><th scope="row">infra</th><td>MLPA, auth or network errors.</td><td>No</td></tr>
+        <tr><th scope="row">budget</th><td>Not run: the token budget was reached.</td><td>No</td></tr>
+        <tr><th scope="row">smoke-check</th><td>Not run: the model did not pass the smoke check.</td><td>No</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="help-judge">
+    <h3>Judge scores</h3>
+    <p class="muted">An LLM second opinion, 1 to 10, on passes and model failures. It does not change verdicts.</p>
+    <table class="help-table">
+      <thead><tr><th>Score</th><th>What it asks</th><th>Shown on</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Goal completion</th><td>Did the end state match the request: every requested item handled, nothing else touched? Any wrong or missing item scores 4 or less.</td><td>Summaries and attempts</td></tr>
+        <tr><th scope="row">Tool accuracy</th><td>Were the tools used correctly? Ignores which items were picked, so it can be 10 on a failure.</td><td>Attempts only</td></tr>
+      </tbody>
+    </table>
+    <table class="help-table">
+      <thead><tr><th>Color</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><span class="score score-good">8 and up</span></th><td>Good</td></tr>
+        <tr><th scope="row"><span class="score score-fair">5 to 7</span></th><td>The right items, with minor issues</td></tr>
+        <tr><th scope="row"><span class="score score-poor">4 and under</span></th><td>A real problem, such as a wrong or missing item</td></tr>
+      </tbody>
+    </table>
+    <table class="help-table">
+      <thead><tr><th>Label</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Not calibrated</th><td>The judge agrees with the browser check on fewer than 90% of the scenario's attempts, so summaries hide its score.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="help-terms">
+    <h3>Terms</h3>
+    <table class="help-table">
+      <tr><th scope="row">Pass rate</th><td>Passes out of judged attempts (passes, model and product failures). Infra failures and skipped attempts are left out.</td></tr>
+      <tr><th scope="row">Smoke check</th><td>The basic scenario runs first; models that do not pass it skip the other scenarios.</td></tr>
+      <tr><th scope="row">Tokens per pass</th><td>All tokens divided by passes, so failures add to it.</td></tr>
+      <tr><th scope="row">Picker choice</th><td>The Smart Window model picker setting used to select the model.</td></tr>
+    </table>
+  </section>
+</dialog>
+<div id="explain" class="explain" popover>
+  <strong class="explain-title"></strong>
+  <p class="explain-body"></p>
+  <a href="#" class="explain-more">More in How to read</a>
+</div>
+<script>
+(() => {
+  const drawer = document.getElementById("help");
+  const narrow = window.matchMedia("(max-width: 720px)");
+  const setOpen = open => document.body.classList.toggle("help-open", open && !narrow.matches);
+  const openHelp = section => {
+    if (!drawer.open) {
+      if (narrow.matches) {
+        drawer.showModal();
+      } else {
+        drawer.show();
+      }
+      setOpen(true);
+    }
+    const target = section && document.getElementById(section);
+    if (target) {
+      target.scrollIntoView({ block: "start" });
+    }
+  };
+  drawer.addEventListener("close", () => setOpen(false));
+  document.getElementById("help-open").addEventListener("click", () => {
+    if (drawer.open) {
+      drawer.close();
+    } else {
+      openHelp();
+    }
+  });
+  drawer.querySelector(".help-close").addEventListener("click", () => drawer.close());
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && drawer.open) {
+      drawer.close();
+    }
+  });
+
+  const explain = document.getElementById("explain");
+  const more = explain.querySelector(".explain-more");
+  document.addEventListener("click", event => {
+    const pill = event.target.closest("[data-explain]");
+    if (!pill || drawer.contains(pill)) {
+      return;
+    }
+    explain.querySelector(".explain-title").textContent = pill.dataset.explainTitle;
+    explain.querySelector(".explain-body").textContent = pill.dataset.explain;
+    more.dataset.helpSection = pill.dataset.helpSection || "";
+    explain.showPopover();
+    const rect = pill.getBoundingClientRect();
+    const left = Math.min(rect.left, window.innerWidth - explain.offsetWidth - 8);
+    const below = rect.bottom + 6;
+    const top = below + explain.offsetHeight > window.innerHeight
+      ? rect.top - explain.offsetHeight - 6
+      : below;
+    explain.style.left = Math.max(8, left) + "px";
+    explain.style.top = Math.max(8, top) + "px";
+  });
+  more.addEventListener("click", event => {
+    event.preventDefault();
+    explain.hidePopover();
+    openHelp(more.dataset.helpSection);
+  });
+})();
+</script>`;
 
 function budgetBanner(report) {
   const skipped = report.attempts.filter(a => a.result === "budget").length;
@@ -643,8 +890,8 @@ export async function writeScenarioReport(report) {
 
   const cards = summaries
     .map(
-      s => `<div class="card">
-        <h3>${escapeHTML(s.model)}</h3>
+      s => `<div class="card model-card" ${modelStyle(s.modelChoice)}>
+        <h3 class="model-dot">${escapeHTML(s.model)}</h3>
         ${verdictBadge(s.verdict)}
         <div class="rate">${percent(s.passRate)}</div>
         <div>${s.passes}/${s.judged} judged attempts passed</div>
@@ -658,8 +905,8 @@ export async function writeScenarioReport(report) {
 
   const summaryRows = summaries
     .map(
-      s => `<tr>
-        <th scope="row"><code>${escapeHTML(s.model)}</code></th>
+      s => `<tr class="model-row" ${modelStyle(s.modelChoice)}>
+        <th scope="row"><code class="model-dot">${escapeHTML(s.model)}</code></th>
         <td data-label="Verdict">${verdictBadge(s.verdict)}</td>
         <td data-label="Pass rate">${percent(s.passRate)} (${s.passes}/${s.judged})</td>
         <td data-label="Failures">${failureMix(s)}</td>
@@ -798,6 +1045,7 @@ export async function writeScenarioReport(report) {
 ${judgeScriptTag(report.judgeScriptFile)}
 </head>
 <body>
+${HELP_BUTTON}
 <h1>${escapeHTML(report.title)}</h1>
 <p class="subtitle">"${escapeHTML(report.instruction)}" · ${report.openTabs.length} tabs · ${escapeHTML(tierText)}</p>
 ${smokeCheckBanner(report, summaries)}
@@ -840,7 +1088,6 @@ ${budgetBanner(report)}
     <dt>Generated</dt><dd>${escapeHTML(new Date().toISOString())}</dd>
   </dl>
 </details>
-${LEGEND}
 
 <h2 id="all-attempts">All attempts</h2>
 <div class="controls">
@@ -952,6 +1199,7 @@ ${LEGEND}
     });
   });
 </script>
+${HELP}
 ${judgeDataTag([report])}
 ${JUDGE_FILLER}
 </body>
@@ -1076,6 +1324,8 @@ function rollupHeadline(models, productFailures) {
  *   overwrites the same roll-up.
  * @param {number} [rollup.scenariosPlanned] - Shows a partial run banner
  *   while fewer scenarios than this have finished.
+ * @param {string} [rollup.feature] - What the scenarios test, shown under
+ *   the title, e.g. "Tab grouping".
  * @returns {Promise<string>} The path of the HTML roll-up.
  */
 export async function writeRollupReport(rollup) {
@@ -1189,7 +1439,7 @@ export async function writeRollupReport(rollup) {
   const modelHeaders = models
     .map(
       m =>
-        `<th><code>${escapeHTML(m.model)}</code>${m.isDefault ? '<span class="tag">default</span>' : ""}</th>`
+        `<th class="model-head" ${modelStyle(m.modelChoice)}><code class="model-dot">${escapeHTML(m.model)}</code>${m.isDefault ? '<span class="tag">default</span>' : ""}</th>`
     )
     .join("");
   const matrixRows = rollup.scenarios
@@ -1216,19 +1466,53 @@ export async function writeRollupReport(rollup) {
       </tr>`;
     })
     .join("");
-  const footerRow = (label, cell) =>
-    `<tr><th scope="row">${label}</th>${models.map(cell).join("")}</tr>`;
-  const matrixFooter = [
-    footerRow(
-      "Overall pass rate",
+  const overallRow = `<tr class="overall-row"><th scope="row">Overall pass rate</th>${models
+    .map(
       m =>
         `<td data-label="${escapeHTML(m.model)}">${percent(m.passRate)} · ${m.passes}/${m.judged}</td>`
-    ),
-  ].join("");
+    )
+    .join("")}</tr>`;
+
+  // On narrow screens the matrix becomes one collapsible block per scenario,
+  // colored by its most serious verdict; blocks that need a look start open.
+  const overallList = models
+    .map(
+      m =>
+        `<li ${modelStyle(m.modelChoice)}><code class="model-dot">${escapeHTML(m.model)}</code> ${percent(m.passRate)} · ${m.passes}/${m.judged}</li>`
+    )
+    .join("");
+  const scenarioBlocks = rollup.scenarios
+    .map((s, index) => {
+      const present = models.filter(m => m.perScenario[index].summary);
+      const status = scenarioStatus(
+        present.map(m => m.perScenario[index].summary.verdict)
+      );
+      const rows = present
+        .map(m => {
+          const summary = m.perScenario[index].summary;
+          const judge = summary.judged
+            ? `<div class="rate-line">Judge: ${judgePending(`data-judge-model="${escapeHTML(m.modelChoice)}" data-judge-scenario="${escapeHTML(s.id)}" data-judge-dims="${judgeOf(s).summary}" data-judge-compact`)}</div>`
+            : "";
+          return `<li ${modelStyle(m.modelChoice)}>
+            <code class="model-dot">${escapeHTML(m.model)}</code>
+            <div>${verdictBadge(summary.verdict)} <span class="rate-line">${percent(summary.passRate)} · ${summary.passes}/${summary.judged}</span></div>
+            ${judge}
+          </li>`;
+        })
+        .join("");
+      return `<details class="scenario-block status-${status}"${status === "healthy" || status === "not-run" ? "" : " open"}>
+        <summary><span class="scenario-name">${escapeHTML(s.id)}</span>${
+          s.tier === "basic" ? ' <span class="muted">(smoke check)</span>' : ""
+        } <span class="status-label">${STATUS_LABELS[status]}</span></summary>
+        <ul class="scenario-models">${rows}</ul>
+        <a class="touch" href="${escapeHTML(PathUtils.filename(s.reportPath))}">Open the scenario report</a>
+      </details>`;
+    })
+    .join("");
   const modelRows = models
     .map(
-      m => `<tr>
-        <th scope="row"><code>${escapeHTML(m.model)}</code>${m.isDefault ? '<span class="tag">default</span>' : ""}</th>
+      m => `<tr class="model-row" ${modelStyle(m.modelChoice)}>
+        <th scope="row"><code class="model-dot">${escapeHTML(m.model)}</code>${m.isDefault ? '<span class="tag">default</span>' : ""}</th>
         <td data-label="Verdict">${verdictBadge(m.verdict)}${verdictNote(m.verdict)}</td>
         <td data-label="Passed">${m.passes}/${m.judged} · ${percent(m.passRate)}</td>
         <td data-label="Top issue">${m.topIssue ? escapeHTML(m.topIssue.text) : '<span class="muted">none</span>'}</td>
@@ -1238,8 +1522,8 @@ export async function writeRollupReport(rollup) {
   const hotSpotModelRows = h =>
     h.models
       .map(
-        m => `<tr>
-          <th scope="row"><code>${escapeHTML(m.model)}</code></th>
+        m => `<tr class="model-row" ${modelStyle(m.modelChoice)}>
+          <th scope="row"><code class="model-dot">${escapeHTML(m.model)}</code></th>
           <td data-label="Verdict">${verdictBadge(m.verdict)}</td>
           <td data-label="Failed">${m.failures}/${m.judged}</td>
           <td data-label="Top reason">${escapeHTML(m.topReason)}</td>
@@ -1280,13 +1564,15 @@ export async function writeRollupReport(rollup) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Smart Window E2E health roll-up</title>
+<title>Smart Window AI Quality Report</title>
 <style>${STYLES}</style>
 ${judgeScriptTag(rollup.judgeScriptFile)}
 </head>
 <body>
-<h1>Smart Window E2E health roll-up</h1>
-<p class="subtitle">${escapeHTML(new Date().toISOString())} · Firefox ${escapeHTML(Services.appinfo.version)} (${escapeHTML(Services.appinfo.appBuildID)})
+${HELP_BUTTON}
+<h1>Smart Window AI Quality Report</h1>
+<p class="subtitle"><strong>${escapeHTML(rollup.feature ?? "")}</strong> · ${rollup.scenariosPlanned ?? finished} scenarios · ${rollup.modelChoices.length} models<br>
+  ${escapeHTML(new Date().toISOString().slice(0, 16).replace("T", " "))} UTC · Firefox ${escapeHTML(Services.appinfo.version)}
   · ${formatTokens(health.tokensUsed)}${health.tokenLimit ? ` of ${formatTokens(health.tokenLimit)}` : ""} tokens<br>
   ${runStatus}
   · ${health.infraFailures} infra failures · ${health.rateLimitRetries} rate-limit retries</p>
@@ -1307,12 +1593,15 @@ ${
 ${hotSpotList}
 
 <h2>Scenarios by model</h2>
-<table class="matrix stack">
+<table class="matrix matrix-wide">
   <thead><tr><th>Scenario</th>${modelHeaders}</tr></thead>
-  <tbody>${matrixRows}</tbody>
-  <tfoot>${matrixFooter}</tfoot>
+  <tbody>${overallRow}${matrixRows}</tbody>
 </table>
-${LEGEND}
+<div class="matrix-narrow">
+  <div class="overall-rates"><strong>Overall pass rate</strong><ul>${overallList}</ul></div>
+  ${scenarioBlocks}
+</div>
+${HELP}
 ${judgeDataTag(rollup.scenarios)}
 ${JUDGE_FILLER}
 </body>
