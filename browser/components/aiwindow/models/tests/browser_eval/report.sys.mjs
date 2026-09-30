@@ -601,7 +601,9 @@ const STYLES = `
   .model-dot::before { content: ""; display: inline-block; width: 0.65em; height: 0.65em; border-radius: 50%; background: var(--model-accent); margin-inline-end: 0.45em; vertical-align: 0.05em; }
   .model-row th[scope="row"] { background: var(--model-tint); border-inline-start: 4px solid var(--model-accent); }
   th.model-head { background: var(--model-tint); border-bottom: 3px solid var(--model-accent); }
-  .model-card { border-top: 4px solid var(--model-accent); }
+  .model-card { border-inline-start: 4px solid var(--model-accent); padding-top: 0; }
+  .model-card h3 { background: var(--model-tint); margin: 0 -16px 8px; padding: 8px 16px; border-radius: 0 6px 0 0; }
+  .note { background: #f0f0f4; border: 1px solid #cfcfd8; border-radius: 4px; padding: 10px 14px; margin: 0 0 1em; }
   .matrix tr.overall-row > * { background: #f0f0f4; font-weight: 600; border-bottom: 2px solid #8f8f9d; }
   .matrix-narrow { display: none; }
   .overall-rates ul, .scenario-models { list-style: none; padding: 0; margin: 0.4em 0; }
@@ -653,9 +655,12 @@ const STYLES = `
     table.stack tr.model-row { border-inline-start: 4px solid var(--model-accent); }
     table.stack tr.model-row > th[scope="row"] { border-inline-start: none; }
     .card { flex: 1 1 100%; max-width: none; min-width: 0; }
-    .controls { flex-direction: column; align-items: stretch; gap: 0.25em; }
-    .controls label { display: flex; align-items: center; gap: 0.5em; min-height: 44px; }
-    .controls select { flex: 1; min-width: 0; }
+    .card .rate { font-size: 1.3em; }
+    .controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.5em; }
+    .controls label { display: flex; flex-direction: column; align-items: stretch; gap: 2px; font-size: 0.9em; }
+    .controls label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; min-height: 44px; }
+    .controls select { min-width: 0; width: 100%; }
+    #column-chooser { display: none; }
     .desktop-only, table.desktop-only { display: none; }
     select, .touch { min-height: 44px; }
     .touch { display: inline-flex; align-items: center; }
@@ -666,8 +671,21 @@ const STYLES = `
     .help-button { top: auto; bottom: 16px; min-height: 44px; }
     body { padding-bottom: 72px; }
     button.verdict, button.score { min-height: 32px; }
-    .scroll { overflow-x: auto; }
-    #attempts th:first-child, #attempts td:first-child { position: sticky; inset-inline-start: 0; z-index: 1; }
+    /* Attempts become cards with a stripe colored by result. */
+    #attempts, #attempts tbody, #attempts tr { display: block; }
+    #attempts thead, #attempts [data-col] { display: none; }
+    #attempts tr[hidden] { display: none; }
+    #attempts tr { border: 1px solid #cfcfd8; border-inline-start: 6px solid #017a40; border-radius: 6px; margin: 0.6em 0; padding: 8px 12px; background: #fff; }
+    #attempts tr.result-model, #attempts tr.result-product { border-inline-start-color: #c50042; }
+    #attempts tr.result-infra { border-inline-start-color: #a86500; }
+    #attempts tr.result-budget, #attempts tr.result-smoke-check { border-inline-start-color: #8f8f9d; }
+    #attempts td { display: block; border: none; padding: 2px 0; }
+    #attempts tr[class] td { background: transparent; }
+    #attempts td.attempt-model, #attempts td.attempt-number, #attempts td.attempt-result { display: inline; }
+    #attempts td.attempt-number::before { content: " #"; }
+    #attempts td.attempt-result::before { content: " · "; color: #5b5b66; font-weight: normal; }
+    #attempts td.attempt-reason { margin-top: 4px; }
+    #attempts td[data-label]::before { content: attr(data-label) ": "; font-weight: 600; color: #5b5b66; }
   }
 `;
 
@@ -844,7 +862,7 @@ function smokeCheckBanner(report, summaries) {
   if (!skipped.length) {
     return "";
   }
-  return `<div class="banner" role="alert">
+  return `<div class="note">
     <strong>Smoke check not passed.</strong>
     ${skipped.map(s => escapeHTML(s.model)).join(", ")} did not pass the smoke check scenario, so
     ${skipped.reduce((n, s) => n + s.smokeCheck, 0)} of ${report.attempts.length} attempts here were not run
@@ -961,14 +979,14 @@ export async function writeScenarioReport(report) {
         a.toolCalls.map(c => c.function?.name).join(" → ") || "none";
       const id = escapeHTML(judgeId(report.id, a.modelChoice, a.attempt));
       const judged = JUDGED_RESULTS.includes(a.result);
-      return `<tr class="result-${a.result}" data-model="${escapeHTML(a.modelChoice)}"
+      return `<tr class="result-${a.result}" ${modelStyle(a.modelChoice)} data-model="${escapeHTML(a.modelChoice)}"
           data-result="${escapeHTML(a.result)}" data-verdict="${verdictByChoice.get(a.modelChoice)?.key ?? ""}">
-        <td data-sort="${a.modelChoice}-${String(a.attempt).padStart(4, "0")}"><code>${escapeHTML(modelName(a))}</code></td>
-        <td data-sort="${a.attempt}">${a.attempt}</td>
-        <td class="${a.result === "pass" ? "pass" : "fail"}">${escapeHTML(a.result)}</td>
-        <td>${escapeHTML(a.reason)}</td>
-        <td data-sort="${a.usage?.total ?? 0}">${usageCell(a)}</td>
-        <td>${judged ? judgePending(`data-judge-id="${id}" data-judge-dims="${judgeOf(report).dimensions.join(",")}"`) : '<span class="muted">not judged</span>'}</td>
+        <td class="attempt-model" data-sort="${a.modelChoice}-${String(a.attempt).padStart(4, "0")}"><code class="model-dot">${escapeHTML(modelName(a))}</code></td>
+        <td class="attempt-number" data-sort="${a.attempt}">${a.attempt}</td>
+        <td class="attempt-result ${a.result === "pass" ? "pass" : "fail"}">${escapeHTML(a.result)}</td>
+        <td class="attempt-reason">${escapeHTML(a.reason)}</td>
+        <td data-label="Tokens in / out" data-sort="${a.usage?.total ?? 0}">${usageCell(a)}</td>
+        <td data-label="Judge">${judged ? judgePending(`data-judge-id="${id}" data-judge-dims="${judgeOf(report).dimensions.join(",")}"`) : '<span class="muted">not judged</span>'}</td>
         <td data-col="toolcalls">${escapeHTML(toolCalls)}</td>
         <td data-col="path">${escapeHTML(a.path ?? "")}</td>
         <td data-col="label">${escapeHTML(a.groups?.[0]?.label ?? "")}</td>

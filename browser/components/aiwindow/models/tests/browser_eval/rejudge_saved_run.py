@@ -91,6 +91,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("run", help="The run's timestamp, e.g. 2026-09-29T18-44-34")
     parser.add_argument("--artifacts", default=os.path.join(TOPSRCDIR, "artifacts"))
+    parser.add_argument(
+        "--judge-model",
+        help="Judge with this MLPA model instead of LlmJudge's default, to compare judges.",
+    )
     args = parser.parse_args()
 
     # The roll-up lists the run's scenario reports, which are named by when
@@ -171,7 +175,10 @@ def main():
         for b in built
     ]
     print(f"Re-judging {len(payloads)} attempts...")
-    evals.LlmJudge(lambda message: None, {}).run(payloads)
+    config = {"model": args.judge_model} if args.judge_model else {}
+    judge = evals.LlmJudge(lambda message: None, config)
+    print(f"Judge model: {judge.model}")
+    judge.run(payloads)
     new = load_results_script(results_path)
     summary_of = {b["id"]: b["summary"] for b in built}
 
