@@ -23,8 +23,9 @@ support-files = [
   "pages/cookware_shop.html",
   "pages/pizza_restaurants.html",
   "pages/tab.sjs",
-  "prompts/group_tabs.sys.mjs",
+  "prompts/judge.sys.mjs",
   "report.sys.mjs",
+  "scenarios.sys.mjs",
   "!/browser/components/tabbrowser/test/browser/smarttabgrouping/performance/data/e2e/flights.html",
   "!/browser/components/tabbrowser/test/browser/smarttabgrouping/performance/data/e2e/lasagna.html",
 ]

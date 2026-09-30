@@ -25,21 +25,17 @@ const evalMetadata = {
   },
 };
 
-const {
-  groupTabsEvalPrompt,
-  groupTabsEvalResponseFormat,
-  groupTabsEvalConfig,
-} = ChromeUtils.importESModule(
-  "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/prompts/group_tabs.sys.mjs"
+const { buildJudgePayload, judgeConfig } = ChromeUtils.importESModule(
+  "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/prompts/judge.sys.mjs"
 );
 
-const E2E_PAGES =
-  "https://example.com/browser/browser/components/tabbrowser/test/browser/smarttabgrouping/performance/data/e2e/";
-const EVAL_PAGES =
-  "https://example.com/browser/browser/components/aiwindow/models/tests/browser_eval/pages/";
-const LASAGNA = E2E_PAGES + "lasagna.html";
-const COOKIES = EVAL_PAGES + "cookie_recipe.html";
-const FLIGHTS = E2E_PAGES + "flights.html";
+const { SCENARIOS, plannedTabTitle } = ChromeUtils.importESModule(
+  "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/scenarios.sys.mjs"
+);
+
+const { toolsConfig } = ChromeUtils.importESModule(
+  "moz-src:///browser/components/aiwindow/models/Tools.sys.mjs"
+);
 
 const {
   judgeId,
@@ -51,28 +47,15 @@ const {
   "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/report.sys.mjs"
 );
 
-const { TAB_CATALOG, catalogIdForUrl } = ChromeUtils.importESModule(
-  "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/data/tab_catalog.sys.mjs"
-);
-
 /**
- * @param {string} id - A key of TAB_CATALOG.
- * @returns {string} URL of a page titled with the catalog title. Everything
- *   the model could use as a hint is in the query string, which Smart Window
- *   leaves out of URL tokens.
+ * @param {object} scenario
+ * @returns {object[]} Smart Window's definitions of the tools the scenario
+ *   uses, which the judge sees.
  */
-function catalogTabUrl(id) {
-  const encode = text =>
-    encodeURIComponent(text).replace(
-      /[!'()*]/g,
-      char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
-    );
-  return `${EVAL_PAGES}tab.sjs?id=${encode(id)}&title=${encode(TAB_CATALOG[id].title)}`;
-}
-
-function plannedTabTitle(url) {
-  const entry = TAB_CATALOG[catalogIdForUrl(url)];
-  return entry ? entry.title : url.split("/").at(-1);
+function judgeTools(scenario) {
+  return toolsConfig.filter(tool =>
+    scenario.judge.tools.includes(tool.function.name)
+  );
 }
 
 // The judge sees tab titles only: catalog URLs carry role-coded ids, such as
@@ -95,142 +78,6 @@ function judgeTabView(outcome) {
   };
 }
 
-/**
- * Builds a scenario from catalog ids. Tabs are shuffled with a fixed seed so
- * the order looks realistic but is the same on every run; `selected` is
- * opened last so it is the selected tab.
- *
- * @param {object} options
- * @param {string} options.id
- * @param {string} options.title
- * @param {string} options.instruction
- * @param {number} options.seed
- * @param {string[]} options.required - Catalog ids that must be grouped.
- * @param {string[]} options.optional - Catalog ids that may be grouped.
- * @param {string[]} options.distractors - Catalog ids that must not be grouped.
- * @param {string} options.selected - A distractor id to select.
- * @returns {object} A scenario.
- */
-function catalogScenario({
-  id,
-  title,
-  instruction,
-  seed,
-  required,
-  optional,
-  distractors,
-  selected,
-}) {
-  const others = [...required, ...optional, ...distractors].filter(
-    tabId => tabId !== selected
-  );
-  const order = [...seededShuffle(others, seed), selected];
-  return {
-    id,
-    title,
-    instruction,
-    tier: "advanced",
-    tabs: order.map(catalogTabUrl),
-    required,
-    optional,
-    expectedUrls: required.map(catalogTabUrl),
-    optionalUrls: optional.map(catalogTabUrl),
-  };
-}
-
-/**
- * Scenarios run with the "basic" tier first. Each opens `tabs` in order in a
- * Smart Window, selects the last one and sends `instruction` from the sidebar.
- * Basic scenarios pass when exactly one group holds exactly `expectedUrls`;
- * catalog scenarios pass when one group holds every `required` tab and
- * nothing outside `required` and `optional`.
- */
-const SCENARIOS = [
-  {
-    id: "group-tabs-basic",
-    tier: "basic",
-    title: "Smart Window E2E: group recipe tabs",
-    instruction: "Group my recipe tabs",
-    tabs: [LASAGNA, COOKIES, FLIGHTS],
-    expectedUrls: [LASAGNA, COOKIES],
-  },
-  {
-    // Food and cooking pages that are not recipes, mixed in between the
-    // recipes, so the model has to tell "recipe" apart from "food-related".
-    id: "group-tabs-near-miss",
-    tier: "advanced",
-    title: "Smart Window E2E: group recipe tabs among food-related tabs",
-    instruction: "Group my food related recipe tabs",
-    tabs: [
-      LASAGNA,
-      EVAL_PAGES + "pizza_restaurants.html",
-      COOKIES,
-      EVAL_PAGES + "cookware_shop.html",
-      FLIGHTS,
-    ],
-    expectedUrls: [LASAGNA, COOKIES],
-  },
-  catalogScenario({
-    id: "group-tabs-made-up-brands",
-    title: "Smart Window E2E: group recipe tabs, all made-up brands",
-    instruction: "Group my recipe tabs",
-    seed: 101,
-    required: ["rec-f01", "rec-f03", "rec-f07"],
-    optional: ["amb-f01"],
-    distractors: [
-      "nm-f01",
-      "nm-f02",
-      "nm-f03",
-      "nm-f04",
-      "trv-f01",
-      "wrk-f01",
-      "dev-f01",
-      "fin-f01",
-    ],
-    selected: "wrk-f01",
-  }),
-  catalogScenario({
-    // The only made-up brand is a required recipe, to see whether the model
-    // leans on recognizing brands.
-    id: "group-tabs-real-brands-one-made-up",
-    title: "Smart Window E2E: group recipe tabs, real brands and one made-up",
-    instruction: "Group my recipe tabs",
-    seed: 202,
-    required: ["rec-r01", "rec-r03", "rec-f05"],
-    optional: ["amb-r02"],
-    distractors: [
-      "nm-r01",
-      "nm-r02",
-      "nm-r04",
-      "nm-r07",
-      "trv-r01",
-      "wrk-r02",
-      "shp-r01",
-      "spt-r01",
-    ],
-    selected: "trv-r01",
-  }),
-  catalogScenario({
-    id: "group-tabs-mixed-unrelated",
-    title: "Smart Window E2E: group recipe tabs among unrelated tabs",
-    instruction: "Group my recipe tabs",
-    seed: 303,
-    required: ["rec-r02", "rec-f02", "rec-r06"],
-    optional: [],
-    distractors: [
-      "trv-r02",
-      "trv-f03",
-      "shp-f01",
-      "wrk-r01",
-      "wrk-r03",
-      "dev-r02",
-      "nws-r02",
-      "spt-f01",
-      "ent-r01",
-    ],
-    selected: "wrk-r01",
-  }),
-];
 const SELECTED_SCENARIOS = Services.env.get("SMARTWINDOW_E2E_SCENARIOS")
   ? Services.env.get("SMARTWINDOW_E2E_SCENARIOS").split(",")
   : SCENARIOS.map(s => s.id);
@@ -648,19 +495,23 @@ async function runScenario(
         info(`${scenario.id}: ${outcome.reason}`);
       } else if (outcome.result === "pass" || outcome.result === "model") {
         const tabView = judgeTabView(outcome);
+        // Saved with the attempt so rejudge_saved_run.py can judge it again.
+        outcome.judgeInput = {
+          instruction: scenario.instruction,
+          criteria: scenario.judge.criteria,
+          dimensions: scenario.judge.dimensions,
+          toolDefinitions: judgeTools(scenario),
+          stateBefore: { label: "Open tabs", data: tabView.openTabs },
+          urlTokens: tabView.urlTokens,
+          toolCalls: outcome.toolCalls,
+          stateAfter: { label: "Tab groups", data: tabView.groups },
+        };
         MLTestUtils.reportEvalData({
           id: judgeId(scenario.id, modelChoice, attempt),
           results_script: judgeScript.path,
           subtest: outcome.model,
-          messages: renderPrompt(groupTabsEvalPrompt, {
-            instruction: scenario.instruction,
-            open_tabs: JSON.stringify(tabView.openTabs, null, 2),
-            url_tokens: JSON.stringify(tabView.urlTokens, null, 2),
-            model_tool_calls: JSON.stringify(outcome.toolCalls, null, 2),
-            tab_groups: JSON.stringify(tabView.groups, null, 2),
-          }),
-          response_format: groupTabsEvalResponseFormat,
-          eval_config: groupTabsEvalConfig,
+          ...buildJudgePayload(outcome.judgeInput),
+          eval_config: judgeConfig(scenario.judge.dimensions),
           target_model: outcome.model,
           scenario: scenario.id,
         });
@@ -685,6 +536,8 @@ async function runScenario(
     expectedUrls: scenario.expectedUrls,
     optionalUrls: scenario.optionalUrls || [],
     tier: scenario.tier,
+    judge: scenario.judge,
+    judgeTools: judgeTools(scenario),
     attemptsPerModel,
     passRateGate: PASS_RATE_GATE,
     tokenBudget: { limit: budget.limit, used: budget.used },

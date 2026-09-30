@@ -12,6 +12,7 @@
  */
 
 import { catalogIdForUrl } from "./data/tab_catalog.sys.mjs";
+import { JUDGE_DIMENSIONS } from "./prompts/judge.sys.mjs";
 
 const FAILURE_RESULTS = ["model", "product", "infra"];
 
@@ -161,15 +162,18 @@ function tokenTotals(attempts) {
 /**
  * @param {object[]} attempts
  * @returns {?{reason: string, count: number, text: string}} The most common
- *   reason among model and browser failures, falling back to infra failures,
- *   or null if there are none.
+ *   problem among model and browser failures, falling back to infra failures,
+ *   or null if there are none. A reason can list several problems separated
+ *   by "; ", and each is counted.
  */
 export function topIssue(attempts) {
   const mostCommon = results => {
     const counts = new Map();
     for (const a of attempts) {
       if (results.includes(a.result)) {
-        counts.set(a.reason, (counts.get(a.reason) ?? 0) + 1);
+        for (const problem of a.reason.split("; ")) {
+          counts.set(problem, (counts.get(problem) ?? 0) + 1);
+        }
       }
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
@@ -297,22 +301,70 @@ const JUDGED_RESULTS = ["pass", "model"];
 const judgeScriptTag = fileName =>
   fileName ? `<script src="${escapeHTML(fileName)}"></script>` : "";
 
+// Used for scenario reports saved before scenarios declared a judge block.
+const DEFAULT_JUDGE = {
+  dimensions: ["goal_completion", "tool_accuracy"],
+  summary: "goal_completion",
+};
+const judgeOf = scenario => scenario.judge ?? DEFAULT_JUDGE;
+
+// Summaries hide a scenario's judge scores when the judge agrees with the
+// browser check on fewer than this share of its judged attempts.
+const JUDGE_AGREEMENT_GATE = 0.9;
+
+/**
+ * @param {Array<{id: string, judge: ?object, attempts: object[]}>} scenarios
+ * @returns {string} JSON the judge filler reads: dimension labels, each
+ *   scenario's summary dimension and the browser result of judged attempts.
+ */
+function judgeDataTag(scenarios) {
+  const dimensions = new Set(
+    scenarios.flatMap(scenario => judgeOf(scenario).dimensions)
+  );
+  const data = {
+    gate: JUDGE_AGREEMENT_GATE,
+    labels: Object.fromEntries(
+      [...dimensions].map(key => [
+        key,
+        {
+          label: JUDGE_DIMENSIONS[key].label,
+          description: JUDGE_DIMENSIONS[key].description,
+        },
+      ])
+    ),
+    summary: Object.fromEntries(
+      scenarios.map(scenario => [scenario.id, judgeOf(scenario).summary])
+    ),
+    attempts: scenarios.flatMap(scenario =>
+      scenario.attempts
+        .filter(a => JUDGED_RESULTS.includes(a.result))
+        .map(a => ({
+          id: judgeId(scenario.id, a.modelChoice, a.attempt),
+          scenario: scenario.id,
+          modelChoice: a.modelChoice,
+          result: a.result,
+        }))
+    ),
+  };
+  return `<script type="application/json" id="judge-data">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>`;
+}
+
 // Fills [data-judge-*] placeholders from window.LLM_JUDGE_RESULTS, which the
 // judge results script defines, keyed by judgeId(). Scores show as colored
-// chips: 8 and up good, 5 to 8 fair, under 5 poor.
+// chips: 8 and up good, 5 to 7 fair, 4 and under poor. The judge agrees with
+// the browser check when a pass scores 5 or more on the scenario's summary
+// dimension, or a failure scores 4 or less.
 const JUDGE_FILLER = `<script>
 (() => {
   const results = window.LLM_JUDGE_RESULTS;
-  if (!results) {
+  const dataElement = document.getElementById("judge-data");
+  if (!results || !dataElement) {
     return;
   }
-  const entries = Object.entries(results).map(([id, r]) => {
-    const [scenario, modelChoice] = id.split("|");
-    return { id, scenario, modelChoice, r };
-  });
+  const data = JSON.parse(dataElement.textContent);
   const oneDecimal = n => (Math.round(n * 10) / 10).toString();
   const mean = values => values.reduce((a, b) => a + b, 0) / values.length;
-  const chip = (label, score, title) => {
+  const chip = (key, score) => {
     const span = document.createElement("span");
     let band = "poor";
     if (score >= 8) {
@@ -321,18 +373,16 @@ const JUDGE_FILLER = `<script>
       band = "fair";
     }
     span.className = "score score-" + band;
-    span.title = title;
-    span.textContent = label + " " + oneDecimal(score);
+    span.title = data.labels[key].description;
+    span.textContent = data.labels[key].label + " " + oneDecimal(score);
     return span;
   };
-  const showScores = (el, goal, tool, judged) => {
+  const showScores = (el, scores, judged) => {
     el.textContent = "";
     el.classList.remove("muted");
-    el.append(
-      chip("Goal completion", goal, "Did the tab groups end up matching the request: the right tabs grouped and nothing else?"),
-      " ",
-      chip("Tool accuracy", tool, "Did the assistant use the tools correctly: get_open_tabs, then manage_tabs with valid tab tokens? Which tabs it picked is scored by goal completion.")
-    );
+    el.dataset.judgeDims.split(",").forEach((key, i) => {
+      el.append(i ? " " : "", chip(key, scores[key]));
+    });
     if (judged) {
       const count = document.createElement("span");
       count.className = "judged-count";
@@ -340,10 +390,25 @@ const JUDGE_FILLER = `<script>
       el.append(" ", count);
     }
   };
+
+  const agreement = {};
+  for (const a of data.attempts) {
+    const r = results[a.id];
+    const key = data.summary[a.scenario];
+    if (!r) {
+      continue;
+    }
+    const tally = agreement[a.scenario] || (agreement[a.scenario] = { agree: 0, total: 0 });
+    tally.total++;
+    if (a.result === "pass" ? r[key] >= 5 : r[key] <= 4) {
+      tally.agree++;
+    }
+  }
+
   for (const el of document.querySelectorAll("[data-judge-id]")) {
     const r = results[el.dataset.judgeId];
     if (r) {
-      showScores(el, r.goal_completion, r.tool_accuracy);
+      showScores(el, r);
     } else {
       el.textContent = "not judged";
     }
@@ -353,21 +418,26 @@ const JUDGE_FILLER = `<script>
     el.textContent = r ? r.reason || "(no reason given)" : "not judged";
   }
   for (const el of document.querySelectorAll("[data-judge-model]")) {
-    const matching = entries.filter(
-      e =>
-        e.modelChoice === el.dataset.judgeModel &&
-        (!el.dataset.judgeScenario || e.scenario === el.dataset.judgeScenario)
+    const scenario = el.dataset.judgeScenario;
+    const matching = data.attempts.filter(
+      a => a.scenario === scenario && a.modelChoice === el.dataset.judgeModel && results[a.id]
     );
     if (!matching.length) {
       el.textContent = "not judged";
       continue;
     }
-    showScores(
-      el,
-      mean(matching.map(e => e.r.goal_completion)),
-      mean(matching.map(e => e.r.tool_accuracy)),
-      "judgeCompact" in el.dataset ? 0 : matching.length
-    );
+    const tally = agreement[scenario];
+    if (tally.agree / tally.total < data.gate) {
+      el.textContent = "Judge not calibrated (" + Math.round((100 * tally.agree) / tally.total) + "% agreement)";
+      el.title = "The judge agrees with the browser check on fewer than " + Math.round(data.gate * 100) +
+        "% of this scenario's judged attempts, so its scores are hidden here. Attempt rows still show them.";
+      continue;
+    }
+    const scores = {};
+    for (const key of el.dataset.judgeDims.split(",")) {
+      scores[key] = mean(matching.map(a => results[a.id][key]));
+    }
+    showScores(el, scores, "judgeCompact" in el.dataset ? 0 : matching.length);
   }
 })();
 </script>`;
@@ -425,7 +495,7 @@ const STYLES = `
   .headline-investigate-browser, .headline-investigate-model { background: #ffe1e6; border-color: #c50042; }
   .headline-inconclusive { background: #fff4de; border-color: #a86500; }
   .headline-not-run { background: #f0f0f4; border-color: #8f8f9d; }
-  .models th, .models td:nth-child(2), .models td:nth-child(3), .models td:nth-child(4) { white-space: nowrap; }
+  .models th, .models td:nth-child(2), .models td:nth-child(3) { white-space: nowrap; }
   .hot-spot { border: 1px solid #cfcfd8; border-radius: 6px; padding: 8px 12px; }
   .hot-spot table { margin: 0.5em 0; }
   .hs-stats { font-weight: normal; color: #5b5b66; margin-inline-start: 0.5em; }
@@ -494,11 +564,11 @@ const LEGEND = `
   <table>
     <tr><th>Term</th><th>Meaning</th></tr>
     <tr><td><strong>Pass rate</strong></td><td>Passes out of judged attempts (passes, model and product failures). Infra failures and skipped attempts are left out.</td></tr>
-    <tr><td><strong>Quality (judge)</strong></td><td>Average LLM judge scores, 1 to 10, over passes and model failures. Informational: it does not change verdicts.
-      <strong>Goal completion</strong>: did the tab groups end up matching the request (the right tabs grouped and nothing else)?
-      <strong>Tool accuracy</strong>: did the assistant use the tools correctly (get_open_tabs, then manage_tabs with valid tab tokens)? It ignores which tabs were picked.
-      For example, grouping a meal-kit tab with the recipes scores low on goal completion but can still score 10 on tool accuracy.
-      Colors: <span class="score score-good">8 and up</span> <span class="score score-fair">5 to 8</span> <span class="score score-poor">under 5</span></td></tr>
+    <tr><td><strong>Quality (judge)</strong></td><td>An LLM second opinion, scored 1 to 10, on passes and model failures. It does not change verdicts.
+      <strong>Goal completion</strong>: did the end state match the request (every requested item handled and nothing else touched)? Any wrong or missing item scores 4 or less.
+      <strong>Tool accuracy</strong>: did the assistant use the tools correctly? It ignores which items were picked, so it can be 10 on a failure; it appears on attempts only.
+      Summaries show each scenario's main score, and only when the judge agrees with the browser check on at least 90% of that scenario's attempts; otherwise they say "Judge not calibrated".
+      Colors: <span class="score score-good">8 and up</span> <span class="score score-fair">5 to 7</span> <span class="score score-poor">4 and under</span></td></tr>
     <tr><td><strong>Tokens per pass</strong></td><td>All tokens divided by passes, so failures add to it</td></tr>
     <tr><td><strong>Picker choice</strong></td><td>The Smart Window model picker setting used to select the model</td></tr>
   </table>
@@ -580,7 +650,7 @@ export async function writeScenarioReport(report) {
         <div>${s.passes}/${s.judged} judged attempts passed</div>
         <div class="muted">${failureMix(s)}</div>
         <div class="muted">${s.tokensPerPass === null ? "no passes" : `${formatTokens(s.tokensPerPass)} tokens per pass`}</div>
-        <div>Quality (judge): ${judgePending(`data-judge-model="${escapeHTML(s.modelChoice)}" data-judge-scenario="${escapeHTML(report.id)}"`)}</div>
+        <div>Quality (judge): ${judgePending(`data-judge-model="${escapeHTML(s.modelChoice)}" data-judge-scenario="${escapeHTML(report.id)}" data-judge-dims="${judgeOf(report).summary}"`)}</div>
         ${cardIssue(s)}
       </div>`
     )
@@ -651,7 +721,7 @@ export async function writeScenarioReport(report) {
         <td class="${a.result === "pass" ? "pass" : "fail"}">${escapeHTML(a.result)}</td>
         <td>${escapeHTML(a.reason)}</td>
         <td data-sort="${a.usage?.total ?? 0}">${usageCell(a)}</td>
-        <td>${judged ? judgePending(`data-judge-id="${id}"`) : '<span class="muted">not judged</span>'}</td>
+        <td>${judged ? judgePending(`data-judge-id="${id}" data-judge-dims="${judgeOf(report).dimensions.join(",")}"`) : '<span class="muted">not judged</span>'}</td>
         <td data-col="toolcalls">${escapeHTML(toolCalls)}</td>
         <td data-col="path">${escapeHTML(a.path ?? "")}</td>
         <td data-col="label">${escapeHTML(a.groups?.[0]?.label ?? "")}</td>
@@ -882,6 +952,7 @@ ${LEGEND}
     });
   });
 </script>
+${judgeDataTag([report])}
 ${JUDGE_FILLER}
 </body>
 </html>
@@ -1131,7 +1202,7 @@ export async function writeRollupReport(rollup) {
             return `<td ${label} class="muted">not selected</td>`;
           }
           const judgeLine = summary.judged
-            ? `<div class="rate-line">Judge: ${judgePending(`data-judge-model="${escapeHTML(m.modelChoice)}" data-judge-scenario="${escapeHTML(s.id)}" data-judge-compact`)}</div>`
+            ? `<div class="rate-line">Judge: ${judgePending(`data-judge-model="${escapeHTML(m.modelChoice)}" data-judge-scenario="${escapeHTML(s.id)}" data-judge-dims="${judgeOf(s).summary}" data-judge-compact`)}</div>`
             : "";
           return `<td ${label} class="${cellTint(summary.verdict)}">${verdictBadge(summary.verdict)}
             <div class="rate-line">${percent(summary.passRate)} · ${summary.passes}/${summary.judged}</div>${judgeLine}</td>`;
@@ -1153,11 +1224,6 @@ export async function writeRollupReport(rollup) {
       m =>
         `<td data-label="${escapeHTML(m.model)}">${percent(m.passRate)} · ${m.passes}/${m.judged}</td>`
     ),
-    footerRow(
-      "Quality (judge)",
-      m =>
-        `<td data-label="${escapeHTML(m.model)}">${judgePending(`data-judge-model="${escapeHTML(m.modelChoice)}"`)}</td>`
-    ),
   ].join("");
   const modelRows = models
     .map(
@@ -1165,7 +1231,6 @@ export async function writeRollupReport(rollup) {
         <th scope="row"><code>${escapeHTML(m.model)}</code>${m.isDefault ? '<span class="tag">default</span>' : ""}</th>
         <td data-label="Verdict">${verdictBadge(m.verdict)}${verdictNote(m.verdict)}</td>
         <td data-label="Passed">${m.passes}/${m.judged} · ${percent(m.passRate)}</td>
-        <td data-label="Quality (judge)">${judgePending(`data-judge-model="${escapeHTML(m.modelChoice)}"`)}</td>
         <td data-label="Top issue">${m.topIssue ? escapeHTML(m.topIssue.text) : '<span class="muted">none</span>'}</td>
       </tr>`
     )
@@ -1234,7 +1299,7 @@ ${
 <div class="headline headline-${headline.key}" role="status"><strong>${escapeHTML(headline.label)}.</strong> ${escapeHTML(headline.text)}</div>
 
 <table class="models stack">
-  <thead><tr><th>Model</th><th>Verdict</th><th>Passed</th><th>Quality (judge)</th><th>Top issue</th></tr></thead>
+  <thead><tr><th>Model</th><th>Verdict</th><th>Passed</th><th>Top issue</th></tr></thead>
   <tbody>${modelRows}</tbody>
 </table>
 
@@ -1248,6 +1313,7 @@ ${hotSpotList}
   <tfoot>${matrixFooter}</tfoot>
 </table>
 ${LEGEND}
+${judgeDataTag(rollup.scenarios)}
 ${JUDGE_FILLER}
 </body>
 </html>
