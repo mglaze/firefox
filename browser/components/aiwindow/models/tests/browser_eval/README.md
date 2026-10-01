@@ -1,4 +1,23 @@
 # `browser_eval` Get Started (temporary README)
+## **Quick start: one model, one scenario**
+After getting the branch, building it and getting a token (see "How to run the tests" below), this runs gemini on one scenario in the sidebar, then the judge. It takes 1-2 minutes and about 100K tokens:
+```
+export MOZ_FXA_BEARER_TOKEN='<fresh token>'
+export MOZ_EVAL_JUDGE_SERVICE_TYPE=ai
+unset MOZ_MLPA_AUTHORIZATION_TOKEN
+
+SMARTWINDOW_E2E_MODEL_CHOICES=1 \
+SMARTWINDOW_E2E_SCENARIOS=group-tabs-made-up-brands \
+SMARTWINDOW_E2E_MODES=sidebar \
+./mach eval browser/components/aiwindow/models/tests/browser_eval/browser_eval_e2e_group_tabs.js -- \
+  --headless --setpref=network.socket.allowed_nonlocal_domains=mlpa-prod-prod-mozilla.freetls.fastly.net \
+  > artifacts/eval-one.log 2>&1
+```
+- Model: `1` gemini, `2` qwen, `3` mistral.
+- Scenario: `group-tabs-basic` (the smoke check), `group-tabs-near-miss`, `group-tabs-made-up-brands`, `group-tabs-real-brands-one-made-up` or `group-tabs-mixed-unrelated`.
+- Mode: `sidebar` or `fullpage`.
+- The report path is in the log line `Roll-up written to …`.
+
 ## **How to run the tests**
 - Get the spike branch (it isn't landed yet) and build it, from your Firefox checkout. An artifact build works:
   ```
