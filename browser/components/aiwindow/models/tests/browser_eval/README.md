@@ -1,6 +1,12 @@
 # `browser_eval` Get Started (temporary README)
 ## **How to run the tests**
-- Use a Firefox build from the spike branch, `mglaze/smartwindow-e2e-tab-grouping-spike`. It isn't landed yet, and an artifact build works. After pulling, run `./mach build faster`.
+- Get the spike branch (it isn't landed yet) and build it, from your Firefox checkout. An artifact build works:
+  ```
+  git fetch https://github.com/mglaze/firefox.git mglaze/smartwindow-e2e-tab-grouping-spike:smartwindow-e2e-spike
+  git switch smartwindow-e2e-spike
+  ./mach build
+  ```
+  After pulling later changes to the branch, `./mach build faster` is enough if only the test files changed.
 - (Temporary while running locally for the spike) Get an FxA token. In a normally launched Release Firefox, signed in with Smart Window, open the Browser Console (Cmd+Shift+J) and run:
   ```js
   await (async () => {
@@ -24,8 +30,9 @@
     --headless --setpref=network.socket.allowed_nonlocal_domains=mlpa-prod-prod-mozilla.freetls.fastly.net \
     > artifacts/eval.log 2>&1
   ```
-- A full run takes about 6-7 minutes and about 1M tokens, capped at 1.5M.
+- By default every scenario runs in both the sidebar and full page. A full run takes about 12-14 minutes and about 2M tokens, capped at 1.5M per mode.
 - For a smaller run, set one of these first:
+  - `SMARTWINDOW_E2E_MODES=sidebar` (or `fullpage`) for one mode, about half the time and tokens;
   - `SMARTWINDOW_E2E_SCENARIOS=group-tabs-basic` for the smoke check only;
   - `SMARTWINDOW_E2E_MODEL_CHOICES=1,3` for some models only (1 gemini, 2 qwen, 3 mistral);
   - `SMARTWINDOW_E2E_ATTEMPTS=3` for fewer attempts.
@@ -53,7 +60,7 @@
 
 ## **How the tests are run**
 - `./mach eval` starts mozperftest, which runs the test as a normal Firefox mochitest.
-- Firefox opens a real Smart Window, loads tabs, and types the request into the sidebar, such as "Group my recipe tabs". The real chat model answers through prod MLPA, using your token.
+- Firefox opens a real Smart Window, loads tabs, and types the request into the sidebar or the full-page chat, such as "Group my recipe tabs". The real chat model answers through prod MLPA, using your token.
 - Each model runs a short smoke check first. Models that fail it skip the harder scenarios.
 - The test then checks the browser itself: is there exactly one tab group, with exactly the right tabs?
 - After Firefox exits, an LLM judge scores each attempt. The scores are added to the reports.
