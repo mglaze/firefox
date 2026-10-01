@@ -29,9 +29,10 @@ const { buildJudgePayload, judgeConfig } = ChromeUtils.importESModule(
   "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/prompts/judge.sys.mjs"
 );
 
-const { SCENARIOS, plannedTabTitle } = ChromeUtils.importESModule(
-  "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/scenarios.sys.mjs"
-);
+const { MODES, SCENARIOS, plannedTabTitle, scenarioVariants } =
+  ChromeUtils.importESModule(
+    "chrome://mochitests/content/browser/browser/components/aiwindow/models/tests/browser_eval/scenarios.sys.mjs"
+  );
 
 const { toolsConfig } = ChromeUtils.importESModule(
   "moz-src:///browser/components/aiwindow/models/Tools.sys.mjs"
@@ -81,6 +82,15 @@ function judgeTabView(outcome) {
 const SELECTED_SCENARIOS = Services.env.get("SMARTWINDOW_E2E_SCENARIOS")
   ? Services.env.get("SMARTWINDOW_E2E_SCENARIOS").split(",")
   : SCENARIOS.map(s => s.id);
+// Every scenario runs in each selected mode, so the modes can be compared on
+// the same prompts and tabs.
+const SELECTED_MODES = (
+  Services.env.get("SMARTWINDOW_E2E_MODES") || MODES.join(",")
+).split(",");
+const RUN_UNITS = scenarioVariants(
+  SCENARIOS.filter(s => SELECTED_SCENARIOS.includes(s.id)),
+  SELECTED_MODES.filter(mode => MODES.includes(mode))
+);
 
 // browser.smartwindow.firstrun.modelChoice values: 1 is gemini-3.1-flash-lite,
 // 2 is qwen3-235b (the default) and 3 is mistral-small.
@@ -108,18 +118,19 @@ const RATE_LIMIT_RETRIES = 2;
 const RATE_LIMIT_WAIT_MS = Number(
   Services.env.get("SMARTWINDOW_E2E_RATE_LIMIT_WAIT_MS") || 30000
 );
-// Input + output tokens the whole run may use across all scenarios and models.
-// Checked before each attempt, so the attempt in flight can overshoot it.
-// 0 disables the cap.
+// Input + output tokens the whole run may use across all scenarios, modes and
+// models; by default 1.5M per mode. Checked before each attempt, so the
+// attempt in flight can overshoot it. 0 disables the cap.
 const TOKEN_BUDGET = Number(
-  Services.env.get("SMARTWINDOW_E2E_TOKEN_BUDGET") || 1500000
+  Services.env.get("SMARTWINDOW_E2E_TOKEN_BUDGET") ||
+    1500000 * SELECTED_MODES.length
 );
 
 // Size the harness timeout (45s units) from the plan: up to a minute per
 // attempt plus its rate-limit waits. It is a ceiling, not the expected time.
 const PLANNED_ATTEMPTS =
   MODEL_CHOICES.length *
-  SCENARIOS.filter(s => SELECTED_SCENARIOS.includes(s.id)).reduce(
+  RUN_UNITS.reduce(
     (n, s) => n + (s.tier === "basic" ? BASIC_ATTEMPTS : ATTEMPTS_PER_MODEL),
     0
   );
@@ -212,6 +223,8 @@ async function runAttempt(scenario, modelChoice, attempt) {
 
   try {
     win = await AIWindowTestUtils.openReadyAIWindow();
+    // A new Smart Window opens on its full-page chat tab.
+    const chatTab = win.gBrowser.selectedTab;
     // Added in order, loaded in parallel.
     const tabs = scenario.tabs.map(url =>
       BrowserTestUtils.addTab(win.gBrowser, url)
@@ -223,22 +236,33 @@ async function runAttempt(scenario, modelChoice, attempt) {
         })
       )
     );
-    win.gBrowser.selectedTab = tabs.at(-1);
     outcome.openTabs = tabs.map(tab => ({
       title: tab.label,
       url: tab.linkedBrowser.currentURI.spec,
     }));
 
-    const sidebarBrowser = await openSmartWindowSidebar(win);
-    const aiWindow = sidebarBrowser.contentDocument.querySelector("ai-window");
+    // In the sidebar the last scenario tab is selected, so the model sees it
+    // as the current page; in full page the chat tab itself is selected.
+    let chatBrowser;
+    if (scenario.mode === "fullpage") {
+      win.gBrowser.selectedTab = chatTab;
+      chatBrowser = chatTab.linkedBrowser;
+      await TestUtils.waitForCondition(
+        () =>
+          chatBrowser.contentDocument &&
+          chatBrowser.contentDocument.querySelector("ai-window:defined"),
+        "The full-page ai-window should be loaded"
+      );
+    } else {
+      win.gBrowser.selectedTab = tabs.at(-1);
+      chatBrowser = await openSmartWindowSidebar(win);
+    }
+    const aiWindow = chatBrowser.contentDocument.querySelector("ai-window");
 
-    await typeInSmartbar(sidebarBrowser, scenario.instruction);
-    await AIWindowTestUtils.selectExplicitSmartbarAction(
-      sidebarBrowser,
-      "chat"
-    );
+    await typeInSmartbar(chatBrowser, scenario.instruction);
+    await AIWindowTestUtils.selectExplicitSmartbarAction(chatBrowser, "chat");
     const start = ChromeUtils.now();
-    await submitSmartbar(sidebarBrowser);
+    await submitSmartbar(chatBrowser);
     await waitForTurnComplete(aiWindow);
     outcome.durationMs = ChromeUtils.now() - start;
     const engine = aiWindow.conversation.engine;
@@ -536,6 +560,8 @@ async function runScenario(
     expectedUrls: scenario.expectedUrls,
     optionalUrls: scenario.optionalUrls || [],
     tier: scenario.tier,
+    mode: scenario.mode,
+    baseId: scenario.baseId,
     judge: scenario.judge,
     judgeTools: judgeTools(scenario),
     attemptsPerModel,
@@ -599,10 +625,9 @@ add_task(async function test_group_recipe_tabs() {
     return;
   }
 
-  const scenarios = SCENARIOS.filter(s => SELECTED_SCENARIOS.includes(s.id));
   Assert.ok(
-    scenarios.length,
-    `SMARTWINDOW_E2E_SCENARIOS should name at least one of: ${SCENARIOS.map(s => s.id).join(", ")}`
+    RUN_UNITS.length,
+    `SMARTWINDOW_E2E_SCENARIOS should name at least one of: ${SCENARIOS.map(s => s.id).join(", ")}, and SMARTWINDOW_E2E_MODES at least one of: ${MODES.join(", ")}`
   );
 
   const { cleanup } = await setupSmartWindowE2E(token);
@@ -619,9 +644,6 @@ add_task(async function test_group_recipe_tabs() {
     const model = await getModelForChoice(modelChoice);
     modelNames.set(modelChoice, (model && model.model) || "");
   }
-  const smokeCheck = scenarios.find(s => s.tier === "basic");
-  const advanced = scenarios.filter(s => s.tier !== "basic");
-  let smokeCheckFailures = new Map();
   const results = [];
   // Rewritten after every scenario, so a harness timeout still leaves an
   // up-to-date roll-up.
@@ -635,48 +657,62 @@ add_task(async function test_group_recipe_tabs() {
       tokenBudget: { limit: budget.limit, used: budget.used },
       judgeScriptFile: judgeScript.fileName,
       runStamp: stamp,
-      scenariosPlanned: scenarios.length,
+      scenariosPlanned: RUN_UNITS.length,
       feature: "Tab grouping",
+      modes: [...new Set(RUN_UNITS.map(unit => unit.mode))],
     });
   let rollupPath;
   try {
-    if (smokeCheck) {
-      const result = await runScenario(smokeCheck, budget, modelNames, {
-        attemptsPerModel: BASIC_ATTEMPTS,
-        smokeCheckFailures,
-        judgeScript,
-      });
-      results.push({
-        ...smokeCheck,
-        attemptsPerModel: BASIC_ATTEMPTS,
-        ...result,
-      });
-      rollupPath = await writeRollup();
-      smokeCheckFailures = findSmokeCheckFailures(
-        smokeCheck,
-        result.attempts,
-        modelNames
-      );
-      if (smokeCheckFailures.size === MODEL_CHOICES.length && advanced.length) {
+    // Each mode runs its own smoke check, which gates that mode's advanced
+    // scenarios, so a model can pass in one mode and not the other.
+    for (const mode of new Set(RUN_UNITS.map(unit => unit.mode))) {
+      const units = RUN_UNITS.filter(unit => unit.mode === mode);
+      const smokeCheck = units.find(s => s.tier === "basic");
+      const advanced = units.filter(s => s.tier !== "basic");
+      let smokeCheckFailures = new Map();
+      if (smokeCheck) {
+        const result = await runScenario(smokeCheck, budget, modelNames, {
+          attemptsPerModel: BASIC_ATTEMPTS,
+          smokeCheckFailures,
+          judgeScript,
+        });
+        results.push({
+          ...smokeCheck,
+          attemptsPerModel: BASIC_ATTEMPTS,
+          ...result,
+        });
+        rollupPath = await writeRollup();
+        smokeCheckFailures = findSmokeCheckFailures(
+          smokeCheck,
+          result.attempts,
+          modelNames
+        );
+        if (
+          smokeCheckFailures.size === MODEL_CHOICES.length &&
+          advanced.length
+        ) {
+          info(
+            `${mode}: no model passed the smoke check, so the advanced scenarios are not run`
+          );
+        }
+      } else if (advanced.length) {
         info(
-          "No model passed the smoke check, so the advanced scenarios are not run"
+          `${mode}: the smoke check scenario is not selected, so no model is skipped`
         );
       }
-    } else if (advanced.length) {
-      info("The smoke check scenario is not selected, so no model is skipped");
-    }
-    for (const scenario of advanced) {
-      const result = await runScenario(scenario, budget, modelNames, {
-        attemptsPerModel: ATTEMPTS_PER_MODEL,
-        smokeCheckFailures,
-        judgeScript,
-      });
-      results.push({
-        ...scenario,
-        attemptsPerModel: ATTEMPTS_PER_MODEL,
-        ...result,
-      });
-      rollupPath = await writeRollup();
+      for (const scenario of advanced) {
+        const result = await runScenario(scenario, budget, modelNames, {
+          attemptsPerModel: ATTEMPTS_PER_MODEL,
+          smokeCheckFailures,
+          judgeScript,
+        });
+        results.push({
+          ...scenario,
+          attemptsPerModel: ATTEMPTS_PER_MODEL,
+          ...result,
+        });
+        rollupPath = await writeRollup();
+      }
     }
     info(`Roll-up written to ${rollupPath}`);
   } finally {

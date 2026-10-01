@@ -6,10 +6,12 @@
  * rejudge_saved_run.py can load them with Node too.
  *
  * A scenario:
- * - id, title, instruction: what the test sends from the sidebar.
+ * - id, title, instruction: what the test sends to Smart Window.
  * - tier: "basic" runs first as the smoke check; "advanced" runs only for
  *   models that pass it.
- * - tabs: URLs opened in order; the last one is selected.
+ * - tabs: URLs opened in order. In the sidebar the last one is selected, so
+ *   it is the page the model sees as context; in full page the chat tab
+ *   itself is selected.
  * - expectedUrls, optionalUrls (and required/optional catalog ids for catalog
  *   scenarios): what the browser check accepts.
  * - judge: how the LLM judge scores it.
@@ -238,3 +240,30 @@ export const SCENARIOS = [
     judge: GROUP_RECIPES_JUDGE,
   }),
 ];
+
+/** Where Smart Window chat runs. Each scenario can run in either. */
+export const MODES = ["sidebar", "fullpage"];
+export const MODE_LABELS = { sidebar: "Sidebar", fullpage: "Full page" };
+
+/**
+ * @param {object[]} scenarios - Entries of SCENARIOS.
+ * @param {string[]} modes - Entries of MODES.
+ * @returns {object[]} One run unit per scenario and mode, with `mode` and
+ *   `baseId`. Sidebar variants keep the scenario's id and title, so results
+ *   stay comparable with earlier runs; full page variants get a "-fullpage"
+ *   id and a " (full page)" title.
+ */
+export function scenarioVariants(scenarios, modes) {
+  return modes.flatMap(mode =>
+    scenarios.map(scenario => ({
+      ...scenario,
+      mode,
+      baseId: scenario.id,
+      id: mode === "sidebar" ? scenario.id : `${scenario.id}-${mode}`,
+      title:
+        mode === "sidebar"
+          ? scenario.title
+          : `${scenario.title} (${MODE_LABELS[mode].toLowerCase()})`,
+    }))
+  );
+}

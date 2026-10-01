@@ -24,6 +24,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -49,8 +50,8 @@ for await (const chunk of process.stdin) {
   input += chunk;
 }
 const { items, fallbackTools } = JSON.parse(input);
-const out = items.map(({ id, scenarioId, instruction, attempt }) => {
-  const judge = SCENARIOS.find(s => s.id === scenarioId).judge;
+const out = items.map(({ id, baseId, judge: savedJudge, instruction, attempt }) => {
+  const judge = savedJudge || SCENARIOS.find(s => s.id === baseId).judge;
   let judgeInput = attempt.judgeInput;
   if (!judgeInput) {
     const titles = new Map(attempt.openTabs.map(tab => [tab.url, tab.title]));
@@ -59,7 +60,7 @@ const out = items.map(({ id, scenarioId, instruction, attempt }) => {
       instruction,
       criteria: judge.criteria,
       dimensions: judge.dimensions,
-      toolDefinitions: (fallbackTools[scenarioId] || []),
+      toolDefinitions: (fallbackTools[baseId] || []),
       stateBefore: { label: "Open tabs", data: attempt.openTabs.map(tab => tab.title) },
       urlTokens: (attempt.urlTokens || []).map(({ token, url }) => ({
         token: "§url_token: " + token + "§",
@@ -76,6 +77,11 @@ const out = items.map(({ id, scenarioId, instruction, attempt }) => {
 });
 console.log(JSON.stringify(out));
 """
+
+
+def base_id(report):
+    """The scenario id without its mode, e.g. for a full page variant."""
+    return report.get("baseId") or re.sub(r"-fullpage$", "", report["id"])
 
 
 def load_results_script(path):
@@ -125,7 +131,7 @@ def main():
     ):
         report = json.load(open(path, encoding="utf-8"))
         if report.get("judgeTools"):
-            fallback_tools[report["id"]] = report["judgeTools"]
+            fallback_tools[base_id(report)] = report["judgeTools"]
 
     old = {}
     for path in glob.glob(
@@ -141,13 +147,16 @@ def main():
             key = f"{report['id']}|{attempt['modelChoice']}|{attempt['attempt']}"
             items.append({
                 "id": key,
-                "scenarioId": report["id"],
+                "baseId": base_id(report),
+                "judge": report.get("judge"),
                 "instruction": report["instruction"],
                 "attempt": attempt,
             })
             outcomes[key] = (report["id"], attempt)
+    if not items:
+        sys.exit(f"No judged attempts (passes or model failures) in {args.run}")
     missing_tools = {
-        i["scenarioId"] for i in items if not i["attempt"].get("judgeInput")
+        i["baseId"] for i in items if not i["attempt"].get("judgeInput")
     } - set(fallback_tools)
     if missing_tools:
         print(

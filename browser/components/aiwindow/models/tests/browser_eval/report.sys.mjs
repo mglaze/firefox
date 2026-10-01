@@ -13,6 +13,7 @@
 
 import { catalogIdForUrl } from "./data/tab_catalog.sys.mjs";
 import { JUDGE_DIMENSIONS } from "./prompts/judge.sys.mjs";
+import { MODES, MODE_LABELS } from "./scenarios.sys.mjs";
 
 const FAILURE_RESULTS = ["model", "product", "infra"];
 
@@ -705,6 +706,7 @@ const HELP = `
     <table class="help-table">
       <tr><th scope="row">Model table</th><td>Each model's verdict, how many judged attempts passed and its most common problem.</td></tr>
       <tr><th scope="row">Hot spots</th><td>Scenarios with the most failures and the models that failed them. "View failures" opens those attempts.</td></tr>
+      <tr><th scope="row">Sidebar vs full page</th><td>Pass rates per model in each mode, over the scenarios run in both. Shown when a run covers both modes.</td></tr>
       <tr><th scope="row">Scenarios by model</th><td>Each scenario's verdict per model, its pass rate and the judge's main score.</td></tr>
       <tr><th scope="row">All attempts</th><td>Every attempt in a scenario report, with filters. "details" shows the tool calls, reply and tab groups.</td></tr>
     </table>
@@ -1065,7 +1067,9 @@ ${judgeScriptTag(report.judgeScriptFile)}
 <body>
 ${HELP_BUTTON}
 <h1>${escapeHTML(report.title)}</h1>
-<p class="subtitle">"${escapeHTML(report.instruction)}" · ${report.openTabs.length} tabs · ${escapeHTML(tierText)}</p>
+<p class="subtitle">"${escapeHTML(report.instruction)}" · ${report.openTabs.length} tabs${
+    report.mode ? ` · ${MODE_LABELS[report.mode]}` : ""
+  } · ${escapeHTML(tierText)}</p>
 ${smokeCheckBanner(report, summaries)}
 ${budgetBanner(report)}
 <div class="cards">${cards}</div>
@@ -1344,14 +1348,33 @@ function rollupHeadline(models, productFailures) {
  *   while fewer scenarios than this have finished.
  * @param {string} [rollup.feature] - What the scenarios test, shown under
  *   the title, e.g. "Tab grouping".
+ * @param {string[]} [rollup.modes] - Modes the run covers; with more than
+ *   one, scenarios are tagged with their mode and compared across modes.
+ * @param {string[]} [rollup.mergedFrom] - Run stamps a merged roll-up was
+ *   built from, see merge_runs.mjs.
  * @returns {Promise<string>} The path of the HTML roll-up.
  */
 export async function writeRollupReport(rollup) {
   const dir = await reportDir();
   const baseName = `smartwindow-e2e-rollup-${rollup.runStamp ?? timestamp()}`;
-  const finished = rollup.scenarios.length;
+  // Each base scenario's modes sit next to each other.
+  const baseOrder = [...new Set(rollup.scenarios.map(s => s.baseId ?? s.id))];
+  const scenarios = [...rollup.scenarios].sort(
+    (a, b) =>
+      baseOrder.indexOf(a.baseId ?? a.id) -
+        baseOrder.indexOf(b.baseId ?? b.id) ||
+      MODES.indexOf(a.mode ?? "sidebar") - MODES.indexOf(b.mode ?? "sidebar")
+  );
+  const modes = rollup.modes ?? [
+    ...new Set(scenarios.map(s => s.mode ?? "sidebar")),
+  ];
+  const modeTag = s =>
+    modes.length > 1 && s.mode
+      ? ` <span class="tag">${MODE_LABELS[s.mode]}</span>`
+      : "";
+  const finished = scenarios.length;
   const partial = finished < (rollup.scenariosPlanned ?? finished);
-  const scenarioSummaries = rollup.scenarios.map(scenario => ({
+  const scenarioSummaries = scenarios.map(scenario => ({
     scenario,
     summaries: summarizeScenario(
       scenario.attempts,
@@ -1395,7 +1418,7 @@ export async function writeRollupReport(rollup) {
         rollup.passRateGate
       ),
       topIssue: topIssue(
-        rollup.scenarios.flatMap(s =>
+        scenarios.flatMap(s =>
           s.attempts.filter(a => a.modelChoice === modelChoice)
         )
       ),
@@ -1412,6 +1435,8 @@ export async function writeRollupReport(rollup) {
       const product = failures.filter(a => a.result === "product").length;
       return {
         scenario: scenario.id,
+        baseId: scenario.baseId ?? scenario.id,
+        mode: scenario.mode,
         title: scenario.title,
         reportFile: PathUtils.filename(scenario.reportPath),
         judged,
@@ -1438,7 +1463,7 @@ export async function writeRollupReport(rollup) {
     .filter(h => h.failures)
     .sort((a, b) => b.failureRate - a.failureRate);
 
-  const allAttempts = rollup.scenarios.flatMap(s => s.attempts);
+  const allAttempts = scenarios.flatMap(s => s.attempts);
   const countAll = result =>
     allAttempts.filter(a => a.result === result).length;
   const health = {
@@ -1460,7 +1485,7 @@ export async function writeRollupReport(rollup) {
         `<th class="model-head" ${modelStyle(m.modelChoice)}><code class="model-dot">${escapeHTML(m.model)}</code>${m.isDefault ? '<span class="tag">default</span>' : ""}</th>`
     )
     .join("");
-  const matrixRows = rollup.scenarios
+  const matrixRows = scenarios
     .map((s, index) => {
       const cells = models
         .map(m => {
@@ -1477,7 +1502,7 @@ export async function writeRollupReport(rollup) {
         })
         .join("");
       return `<tr>
-        <th scope="row"><a href="${escapeHTML(PathUtils.filename(s.reportPath))}">${escapeHTML(s.id)}</a>${
+        <th scope="row"><a href="${escapeHTML(PathUtils.filename(s.reportPath))}">${escapeHTML(s.baseId ?? s.id)}</a>${modeTag(s)}${
           s.tier === "basic" ? '<br><span class="muted">smoke check</span>' : ""
         }</th>
         ${cells}
@@ -1499,7 +1524,7 @@ export async function writeRollupReport(rollup) {
         `<li ${modelStyle(m.modelChoice)}><code class="model-dot">${escapeHTML(m.model)}</code> ${percent(m.passRate)} · ${m.passes}/${m.judged}</li>`
     )
     .join("");
-  const scenarioBlocks = rollup.scenarios
+  const scenarioBlocks = scenarios
     .map((s, index) => {
       const present = models.filter(m => m.perScenario[index].summary);
       const status = scenarioStatus(
@@ -1519,7 +1544,7 @@ export async function writeRollupReport(rollup) {
         })
         .join("");
       return `<details class="scenario-block status-${status}"${status === "healthy" || status === "not-run" ? "" : " open"}>
-        <summary><span class="scenario-name">${escapeHTML(s.id)}</span>${
+        <summary><span class="scenario-name">${escapeHTML(s.baseId ?? s.id)}</span>${modeTag(s)}${
           s.tier === "basic" ? ' <span class="muted">(smoke check)</span>' : ""
         } <span class="status-label">${STATUS_LABELS[status]}</span></summary>
         <ul class="scenario-models">${rows}</ul>
@@ -1527,6 +1552,68 @@ export async function writeRollupReport(rollup) {
       </details>`;
     })
     .join("");
+  // Pass rates per mode, over the base scenarios each model ran in both
+  // sidebar and full page, so the comparison is paired.
+  const compareModes =
+    modes.includes("sidebar") && modes.includes("fullpage")
+      ? models.map(m => {
+          const pairs = new Map();
+          m.perScenario.forEach(({ summary }, index) => {
+            if (!summary || !summary.judged) {
+              return;
+            }
+            const scenario = scenarios[index];
+            const base = scenario.baseId ?? scenario.id;
+            pairs.set(base, {
+              ...pairs.get(base),
+              [scenario.mode ?? "sidebar"]: summary,
+            });
+          });
+          const totals = {
+            sidebar: { passes: 0, judged: 0 },
+            fullpage: { passes: 0, judged: 0 },
+          };
+          for (const pair of pairs.values()) {
+            if (pair.sidebar && pair.fullpage) {
+              for (const mode of ["sidebar", "fullpage"]) {
+                totals[mode].passes += pair[mode].passes;
+                totals[mode].judged += pair[mode].judged;
+              }
+            }
+          }
+          return { m, totals };
+        })
+      : [];
+  const rateCell = ({ passes, judged }) =>
+    judged ? `${passes}/${judged} · ${percent(passes / judged)}` : "n/a";
+  const modeCompareRows = compareModes
+    .map(({ m, totals }) => {
+      const { sidebar, fullpage } = totals;
+      let difference = "n/a";
+      if (sidebar.judged && fullpage.judged) {
+        const points = Math.round(
+          (fullpage.passes / fullpage.judged -
+            sidebar.passes / sidebar.judged) *
+            100
+        );
+        difference = `${points > 0 ? "+" : ""}${points} pts`;
+      }
+      return `<tr class="model-row" ${modelStyle(m.modelChoice)}>
+        <th scope="row"><code class="model-dot">${escapeHTML(m.model)}</code></th>
+        <td data-label="Sidebar">${rateCell(sidebar)}</td>
+        <td data-label="Full page">${rateCell(fullpage)}</td>
+        <td data-label="Full page minus sidebar">${difference}</td>
+      </tr>`;
+    })
+    .join("");
+  const modeCompareSection = modeCompareRows
+    ? `<h2>Sidebar vs full page</h2>
+<p class="muted">Same scenarios, prompts and tabs in both modes. In the sidebar the model sees the selected page as context; in full page it does not. Counts only scenarios each model ran in both modes.</p>
+<table class="models stack">
+  <thead><tr><th>Model</th><th>Sidebar</th><th>Full page</th><th>Full page minus sidebar</th></tr></thead>
+  <tbody>${modeCompareRows}</tbody>
+</table>`
+    : "";
   const modelRows = models
     .map(
       m => `<tr class="model-row" ${modelStyle(m.modelChoice)}>
@@ -1553,7 +1640,7 @@ export async function writeRollupReport(rollup) {
     ? hotSpots
         .map(
           (h, i) => `<details class="hot-spot"${i === 0 ? " open" : ""}>
-            <summary>${escapeHTML(h.scenario)}<span class="hs-stats">${percent(h.failureRate)} failed (${h.failures}/${h.judged})
+            <summary>${escapeHTML(h.baseId)}${modeTag(h)}<span class="hs-stats">${percent(h.failureRate)} failed (${h.failures}/${h.judged})
               · mostly ${h.mostlyKind === "browser" ? '<strong class="fail">browser</strong>' : "model"}</span></summary>
             <table class="stack">
               <thead><tr><th>Model</th><th>Verdict</th><th>Failed</th><th>Top reason</th><th></th></tr></thead>
@@ -1589,7 +1676,12 @@ ${judgeScriptTag(rollup.judgeScriptFile)}
 <body>
 ${HELP_BUTTON}
 <h1>Smart Window AI Quality Report</h1>
-<p class="subtitle"><strong>${escapeHTML(rollup.feature ?? "")}</strong> · ${rollup.scenariosPlanned ?? finished} scenarios · ${rollup.modelChoices.length} models<br>
+<p class="subtitle"><strong>${escapeHTML(rollup.feature ?? "")}</strong> · ${
+    modes.length > 1
+      ? `${Math.round((rollup.scenariosPlanned ?? finished) / modes.length)} scenarios × ${modes.length} modes (${modes.map(mode => MODE_LABELS[mode]).join(", ")})`
+      : `${rollup.scenariosPlanned ?? finished} scenarios`
+  } · ${rollup.modelChoices.length} models<br>
+  ${rollup.mergedFrom ? `Merged from ${rollup.mergedFrom.length} runs: ${escapeHTML(rollup.mergedFrom.join(", "))}<br>` : ""}
   ${escapeHTML(new Date().toISOString().slice(0, 16).replace("T", " "))} UTC · Firefox ${escapeHTML(Services.appinfo.version)}
   · ${formatTokens(health.tokensUsed)}${health.tokenLimit ? ` of ${formatTokens(health.tokenLimit)}` : ""} tokens<br>
   ${runStatus}
@@ -1609,6 +1701,7 @@ ${
 
 <h2>Hot spots: scenarios to check</h2>
 ${hotSpotList}
+${modeCompareSection}
 
 <h2>Scenarios by model</h2>
 <table class="matrix matrix-wide">
@@ -1620,7 +1713,7 @@ ${hotSpotList}
   ${scenarioBlocks}
 </div>
 ${HELP}
-${judgeDataTag(rollup.scenarios)}
+${judgeDataTag(scenarios)}
 ${JUDGE_FILLER}
 </body>
 </html>
@@ -1635,6 +1728,13 @@ ${JUDGE_FILLER}
       buildID: Services.appinfo.appBuildID,
     },
     passRateGate: rollup.passRateGate,
+    feature: rollup.feature,
+    modelChoices: rollup.modelChoices,
+    defaultModelChoice: rollup.defaultModelChoice,
+    modes,
+    judgeScriptFile: rollup.judgeScriptFile,
+    tokenBudget: rollup.tokenBudget,
+    mergedFrom: rollup.mergedFrom,
     scenariosFinished: finished,
     scenariosPlanned: rollup.scenariosPlanned ?? finished,
     headline,
@@ -1661,7 +1761,7 @@ ${JUDGE_FILLER}
       quality: null,
     })),
     hotSpots,
-    reports: rollup.scenarios.map(s => PathUtils.filename(s.reportPath)),
+    reports: scenarios.map(s => PathUtils.filename(s.reportPath)),
   });
   return path;
 }
