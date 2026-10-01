@@ -180,7 +180,11 @@ function findDroppedTabs(manageTabsCall, tokenToUrl, outcome) {
  * @param {number} attempt
  * @param {object} [fields] - Fields that differ from an attempt that has not
  *   run yet.
- * @returns {object} An attempt outcome.
+ * @returns {object} An attempt outcome. `category` says what kind of problem
+ *   a non-passing attempt had: "tool-use" (the model didn't use the tools
+ *   correctly), "wrong-result" (tools used fine, wrong tabs grouped),
+ *   "firefox" (Firefox didn't do what the model asked), "service" (MLPA, auth
+ *   or network) or "not-run"; null for a pass.
  */
 function makeOutcome(modelChoice, attempt, fields = {}) {
   return {
@@ -188,6 +192,7 @@ function makeOutcome(modelChoice, attempt, fields = {}) {
     attempt,
     model: "",
     result: "",
+    category: null,
     reason: "",
     path: null,
     toolCalls: [],
@@ -212,7 +217,8 @@ function makeOutcome(modelChoice, attempt, fields = {}) {
  */
 async function runAttempt(scenario, modelChoice, attempt) {
   const outcome = makeOutcome(modelChoice, attempt);
-  const fail = (result, reason) => Object.assign(outcome, { result, reason });
+  const fail = (result, category, reason) =>
+    Object.assign(outcome, { result, category, reason });
 
   const fetchWithHistorySpy = sinon.spy(Chat, "fetchWithHistory");
   const receiveResponseSpy = sinon.spy(
@@ -273,7 +279,7 @@ async function runAttempt(scenario, modelChoice, attempt) {
     );
 
     if (!fetchWithHistorySpy.called) {
-      return fail("product", "the chat request was never sent");
+      return fail("product", "firefox", "the chat request was never sent");
     }
     const chatError = await fetchWithHistorySpy.lastCall.returnValue.then(
       () => null,
@@ -282,12 +288,13 @@ async function runAttempt(scenario, modelChoice, attempt) {
     if (chatError) {
       const { kind, reason, rateLimited } = describeChatError(chatError);
       outcome.rateLimited = rateLimited;
-      return fail(kind, reason);
+      return fail(kind, kind === "infra" ? "service" : "firefox", reason);
     }
     const { signal } = fetchWithHistorySpy.lastCall.args[0];
     if (signal && signal.aborted) {
       return fail(
         "product",
+        "firefox",
         "the chat request was aborted before the turn finished"
       );
     }
@@ -310,7 +317,7 @@ async function runAttempt(scenario, modelChoice, attempt) {
       call => call.function && call.function.name === "manage_tabs"
     );
     if (!manageTabsCall) {
-      return fail("model", "manage_tabs was not called");
+      return fail("model", "tool-use", "manage_tabs was not called");
     }
 
     const lastUIMessage = conversation.messages.findLast(
@@ -325,6 +332,7 @@ async function runAttempt(scenario, modelChoice, attempt) {
     } else {
       return fail(
         "model",
+        "tool-use",
         `manage_tabs did not produce a tab group (tool UI "${uiType}")`
       );
     }
@@ -337,6 +345,7 @@ async function runAttempt(scenario, modelChoice, attempt) {
     } catch (e) {
       return fail(
         "product",
+        "firefox",
         `no tab group was created after the "${outcome.path}" path`
       );
     }
@@ -350,6 +359,7 @@ async function runAttempt(scenario, modelChoice, attempt) {
     if (dropped.length) {
       return fail(
         "product",
+        "firefox",
         `manage_tabs asked to group ${requested} tabs, but Firefox left out ${dropped.map(title => `"${title}"`).join(", ")}`
       );
     }
@@ -362,7 +372,7 @@ async function runAttempt(scenario, modelChoice, attempt) {
       : verifyGroupedExactly(outcome.groups, scenario.expectedUrls);
     return ok
       ? Object.assign(outcome, { result: "pass", reason })
-      : fail("model", reason);
+      : fail("model", "wrong-result", reason);
   } finally {
     fetchWithHistorySpy.restore();
     receiveResponseSpy.restore();
@@ -411,6 +421,7 @@ async function runAttemptWithRateLimitRetries(scenario, modelChoice, attempt) {
     } catch (e) {
       outcome = makeOutcome(modelChoice, attempt, {
         result: "infra",
+        category: "service",
         reason: `unexpected error, possibly a slow or failing backend: ${e}`,
       });
     }
@@ -458,7 +469,12 @@ async function runScenario(
 ) {
   const attempts = [];
   const notRun = (modelChoice, attempt, result, reason) =>
-    makeOutcome(modelChoice, attempt, { result, reason, retries: 0 });
+    makeOutcome(modelChoice, attempt, {
+      result,
+      category: "not-run",
+      reason,
+      retries: 0,
+    });
   for (let attempt = 1; attempt <= attemptsPerModel; attempt++) {
     for (const modelChoice of MODEL_CHOICES) {
       let outcome;
@@ -509,6 +525,7 @@ async function runScenario(
           model: outcome.model,
           attempt,
           result: outcome.result,
+          category: outcome.category,
           reason: outcome.reason,
           retries: outcome.retries,
           tokens: (outcome.usage && outcome.usage.total) || 0,
