@@ -2217,7 +2217,7 @@ const nsIFrame* nsLayoutUtils::FindNearestCommonAncestorFrameWithinBlock(
   return nullptr;
 }
 
-bool nsLayoutUtils::AuthorSpecifiedBorderBackgroundDisablesTheming(
+bool nsLayoutUtils::AuthorOrUserSpecifiedBorderBackgroundDisablesTheming(
     StyleAppearance aAppearance) {
   return aAppearance == StyleAppearance::NumberInput ||
          aAppearance == StyleAppearance::PasswordInput ||

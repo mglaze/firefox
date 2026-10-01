@@ -2899,7 +2899,6 @@ def security_hardening_cflags(
     hardening_flag, asan, debug, optimize, c_compiler, target
 ):
     compiler_is_gccish = c_compiler.type in ("gcc", "clang")
-    mingw_clang = c_compiler.type == "clang" and target.os == "WINNT"
 
     flags = []
     ldflags = []
@@ -2964,12 +2963,6 @@ def security_hardening_cflags(
             # Cannot use level 3 because we have many uses of the [0] GNU syntax.
             # Cannot use level 2 because sqlite3 and icu use the [1] GNU syntax.
             flags.append("-fstrict-flex-arrays=1")
-
-        # ASLR ------------------------------------------------
-        # ASLR (dynamicbase) is enabled by default in clang-cl; but the
-        # mingw-clang build requires it to be explicitly enabled
-        if mingw_clang:
-            ldflags.append("-Wl,--dynamicbase")
 
         # Control Flow Guard (CFG) ----------------------------
         if (
@@ -3999,6 +3992,11 @@ set_config(
         when=is_aarch64_target,
     ),
 )
+
+
+# LoongArch SIMD and Advanced SIMD Extensions
+set_config("LSX_FLAGS", ["-mlsx"])
+set_config("LASX_FLAGS", ["-mlasx"])
 
 
 @depends(target, c_compiler)

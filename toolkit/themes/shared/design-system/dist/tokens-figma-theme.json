@@ -934,6 +934,16 @@
     "dark": "rgb(251, 251, 254)",
     "forcedColors": "MenuText"
   },
+  "panel/text/color/dimmed": {
+    "light": "{Theme$panel/text/color}",
+    "dark": "{Theme$panel/text/color}",
+    "forcedColors": "{Theme$panel/text/color}"
+  },
+  "panel/text/color/dimmed/further": {
+    "light": "{Theme$panel/text/color}",
+    "dark": "{Theme$panel/text/color}",
+    "forcedColors": "{Theme$panel/text/color}"
+  },
   "popup/background/color": {
     "light": "{Theme$background/color/box}",
     "dark": "{Theme$background/color/box}",
@@ -1371,6 +1381,21 @@
     "forcedColors": "{Primitives$message-bar/icon/container/padding}"
   },
   "message-bar/text/color": {
+    "light": "{Theme$text/color}",
+    "dark": "{Theme$text/color}",
+    "forcedColors": "{Theme$text/color}"
+  },
+  "message-bar/text/color/warning": {
+    "light": "{Theme$text/color}",
+    "dark": "{Theme$text/color}",
+    "forcedColors": "{Theme$text/color}"
+  },
+  "message-bar/text/color/success": {
+    "light": "{Theme$text/color}",
+    "dark": "{Theme$text/color}",
+    "forcedColors": "{Theme$text/color}"
+  },
+  "message-bar/text/color/critical": {
     "light": "{Theme$text/color}",
     "dark": "{Theme$text/color}",
     "forcedColors": "{Theme$text/color}"
@@ -2002,6 +2027,16 @@
     "dark": "color-mix(in srgb, currentColor 16%, transparent)",
     "forcedColors": "transparent"
   },
+  "urlbar/box/text/color/hover": {
+    "light": "{Primitives$urlbar/box/text/color}",
+    "dark": "{Primitives$urlbar/box/text/color}",
+    "forcedColors": "{Primitives$urlbar/box/text/color}"
+  },
+  "urlbar/box/text/color/active": {
+    "light": "{Primitives$urlbar/box/text/color}",
+    "dark": "{Primitives$urlbar/box/text/color}",
+    "forcedColors": "{Primitives$urlbar/box/text/color}"
+  },
   "urlbar/icon/fill/opacity": {
     "light": 0.72,
     "dark": 0.72,
@@ -2009,24 +2044,35 @@
   },
   "urlbarview/background/color/hover": {
     "light": "rgb(240, 240, 244)",
-    "dark": "{Theme$background/color/dimmed}",
-    "forcedColors": "transparent"
+    "dark": "{Theme$background/color/list/item/hover}",
+    "forcedColors": "color-mix(in srgb, currentColor 20%, transparent)"
   },
   "urlbarview/background/color/selected": {
     "light": "#e0e0e6",
     "dark": "rgb(43, 42, 51)",
-    "forcedColors": "transparent"
+    "forcedColors": "{Theme$background/color/list/item/hover}"
   },
   "urlbarview/separator/color": {
     "light": "rgb(240, 240, 244)",
     "dark": "rgb(82, 82, 94)",
     "forcedColors": "color-mix(in srgb, currentColor 86%, transparent)"
   },
+  "urlbarview/action/button/background/color": {
+    "light": "color-mix(in srgb, {Colors$color/gray/20} 50%, transparent)",
+    "dark": "color-mix(in srgb, currentColor 8.5%, transparent)",
+    "forcedColors": "transparent"
+  },
+  "urlbarview/action/button/background/color/hover": {
+    "light": "{Colors$color/gray/20}",
+    "dark": "color-mix(in srgb, currentColor 17%, transparent)",
+    "forcedColors": "transparent"
+  },
   "urlbarview/text/color/action": {
     "light": "rgb(91, 91, 102)",
     "dark": "rgb(191, 191, 201)",
     "forcedColors": "transparent"
   },
+  "urlbarview/text/color/hover": "currentColor",
   "urlbarview/text/color/secondary": {
     "light": "color-mix(in srgb, currentColor 73%, transparent)",
     "dark": "color-mix(in srgb, currentColor 73%, transparent)",
@@ -2035,6 +2081,6 @@
   "urlbarview/text/color/selected": {
     "light": "rgb(21, 20, 26)",
     "dark": "rgb(251, 251, 254)",
-    "forcedColors": "transparent"
+    "forcedColors": "{Theme$text/color/list/item/hover}"
   }
 }

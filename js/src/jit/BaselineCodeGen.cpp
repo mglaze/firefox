@@ -5,6 +5,7 @@
 #include "jit/BaselineCodeGen.h"
 
 #include "mozilla/Casting.h"
+#include "mozilla/FloatingPoint.h"
 
 #include "gc/GC.h"
 #include "jit/BaselineCompileQueue.h"
@@ -3128,10 +3129,13 @@ bool BaselineCompilerCodeGen::emitConstantStrictEq(JSOp op) {
         masm.branchTestValue(JSOpToCondition(op, false), value,
                              DoubleValue(constantVal), &pass);
       } else {
-        masm.branchTestValue(Assembler::Equal, value, DoubleValue(0.0),
-                             op == JSOp::StrictEq ? &pass : &fail);
-        masm.branchTestValue(JSOpToCondition(op, false), value,
-                             DoubleValue(-0.0), &pass);
+        // +0.0 and -0.0 are the only Values whose bits are zero outside the
+        // sign bit.
+        masm.branchTest64(
+            op == JSOp::StrictEq ? Assembler::Zero : Assembler::NonZero,
+            value.toRegister64(),
+            Imm64(~mozilla::SpecificFloatingPointBits<double, 1, 0, 0>::value),
+            &pass);
       }
       masm.bind(&fail);
       break;

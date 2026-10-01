@@ -1443,6 +1443,10 @@ class MacroAssemblerCompat : public vixl::MacroAssembler {
                          ARMFPRegister lhs, ARMFPRegister rhs);
   void compareSimd128Float(Assembler::Condition cond, ARMFPRegister dest,
                            ARMFPRegister lhs, ARMFPRegister rhs);
+  void compareSimd128IntWithZero(Assembler::Condition cond, ARMFPRegister dest,
+                                 ARMFPRegister lhs);
+  void compareSimd128FloatWithZero(Assembler::Condition cond,
+                                   ARMFPRegister dest, ARMFPRegister lhs);
   void rightShiftInt8x16(FloatRegister lhs, Register rhs, FloatRegister dest,
                          bool isUnsigned);
   void rightShiftInt16x8(FloatRegister lhs, Register rhs, FloatRegister dest,

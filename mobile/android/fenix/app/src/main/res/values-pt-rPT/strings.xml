@@ -831,7 +831,7 @@
   <!-- Preference for settings related to visual options -->
   <string name="preferences_customize">Personalizar</string>
   <!-- Preference description shown in the banner prompting the user to sign in for sync features -->
-  <string name="preferences_sign_in_description">Sincronize separadores, marcadores, palavras-passe e mais.</string>
+  <string name="preferences_sign_in_description">Sincronize separadores, marcadores, palavras-passe e muito mais.</string>
   <!-- Preference shown instead of account display name while account profile information isn't available yet. -->
   <string name="preferences_account_default_name_2" tools:ignore="BrandUsage">Conta Mozilla</string>
   <!-- Preference text for account title when there was an error syncing FxA -->
@@ -2443,6 +2443,8 @@
   <string name="sync_send_tab_error_connection_title">Verifique a sua ligação à internet</string>
   <!-- Send tab to synced devices: Connectivity Error message - Suggested user action after internet connection has been established -->
   <string name="sync_send_tab_error_connection_text">Depois tente reenviar o seu separador.</string>
+  <!-- Send tab to synced devices: Connectivity Error button - When tapped, refreshes the list of connected devices. -->
+  <string name="sync_send_tab_error_connection_button">Tentar novamente</string>
   <!--
     Notifications
 
@@ -2625,6 +2627,12 @@
   <string name="sign_in_create_account_text" tools:ignore="BrandUsage"><![CDATA[Sem conta? <u>Crie uma conta</u> para sincronizar o Firefox entre os dispositivos.]]></string>
   <!-- Text shown in confirmation dialog to sign out of account. %s is the name of the app (for example "Firefox"). -->
   <string name="sign_out_confirmation_message_2">O %s irá suspender a sincronização com a sua conta, mas não irá eliminar quaisquer dados de navegação seus neste dispositivo.</string>
+  <!-- Title of the confirmation dialog shown when the user signs out of their account -->
+  <string name="sign_out_dialog_title">Terminar sessão da sua conta?</string>
+  <!-- Body of the confirmation dialog shown when the user signs out of their account -->
+  <string name="sign_out_dialog_message">Os dados sincronizados permanecem guardados na sua conta.</string>
+  <!-- Text for the primary action button of the confirmation dialog shown when the user signs out of their account -->
+  <string name="sign_out_dialog_confirm_button">Terminar sessão</string>
   <!-- Option to continue signing out of account shown in confirmation dialog to sign out of account -->
   <string name="sign_out_disconnect">Desassociar</string>
   <!-- Option to cancel signing out shown in confirmation dialog to sign out of account -->

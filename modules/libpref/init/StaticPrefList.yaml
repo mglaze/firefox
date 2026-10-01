@@ -2446,31 +2446,6 @@
   value: false
   mirror: always
 
-# Back off timer notification after count.
-# -1 means never.
-- name: content.notify.backoffcount
-  type: int32_t
-  value: -1
-  mirror: always
-
-# Notification interval in microseconds.
-# The notification interval has a dramatic effect on how long it takes to
-# initially display content for slow connections. The current value
-# provides good incremental display of content without causing an increase
-# in page load time. If this value is set below 1/10 of a second it starts
-# to impact page load performance.
-# See bugzilla bug 72138 for more info.
-- name: content.notify.interval
-  type: int32_t
-  value: 120000
-  mirror: always
-
-# Do we notify based on time?
-- name: content.notify.ontimer
-  type: bool
-  value: true
-  mirror: always
-
 # How many times to deflect in interactive mode.
 - name: content.sink.interactive_deflect_count
   type: int32_t
@@ -4312,7 +4287,7 @@
 # Declarative Web Push
 # https://w3c.github.io/push-api/#declarative-push-message
 - name: dom.push.declarative.enabled
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
@@ -5468,6 +5443,14 @@
 - name: dom.fs.databaseInitialization.pauseOnIOThreadMs
   type: RelaxedAtomicUint32
   value: 0
+  mirror: always
+
+# Whether OPFS is enabled in Private Browsing Mode.
+# TODO: Before enabling, please handle crash safety in
+# EncryptedRandomAccessStream::SetEOF, see bug 2072949 for details.
+- name: dom.fs.privateBrowsing.enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # LocalStorage data limit as determined by summing up the lengths of all string
@@ -8627,11 +8610,6 @@
     value: false
     mirror: once
 -   name: gfx.webrender.dcomp-video-vp-scaling-win
-    type: bool
-    value: true
-    mirror: once
-  # Whether to use virtual surfaces, as opposed to each tile owning a surface.
--   name: gfx.webrender.dcomp-use-virtual-surfaces
     type: bool
     value: true
     mirror: once
@@ -15175,6 +15153,17 @@
   value: 393216
   mirror: always
 
+# Max segment size, in bytes, used when copying an upload stream into a
+# replayable buffer. Clamped to [4096, 2^31] and rounded up to a power of two.
+- name: network.http.upload_copy_max_segment_size
+  type: RelaxedAtomicUint32
+#ifdef NIGHTLY_BUILD
+  value: 65536
+#else
+  value: 4096
+#endif
+  mirror: always
+
 # When true (default), decode Content-Encoding (e.g. gzip) when saving to disk
 # even if the URL extension matches the encoding (.gz, .tgz, .zip, .z, .svgz),
 # avoiding double-compressed files. When false, restore the legacy behavior of
@@ -16570,6 +16559,13 @@
   type: RelaxedAtomicUint32
   value: 512 * 1024 * 1024
   mirror: always
+
+# Comma-separated list of ISO 15924 script codes for "Limited Use" scripts
+# that should be allowed in IDN labels (displayed natively instead of punycode).
+- name: network.idn.allowed_limited_use_scripts
+  type: String
+  value: "Bali, Cans, Java, Nko"
+  mirror: never
 
 # When true, if all the cyrillic characters in a label
 # are latin confusables and on a non-cyrillic domain

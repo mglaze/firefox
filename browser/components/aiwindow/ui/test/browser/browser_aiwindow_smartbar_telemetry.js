@@ -338,6 +338,43 @@ add_task(async function test_smartbar_telemetry_chat_submit_keyboard() {
   await BrowserTestUtils.closeWindow(win);
 });
 
+add_task(async function test_smartbar_telemetry_chat_submit_tab_group() {
+  await resetTelemetry();
+
+  const win = await openAIWindow();
+  const browser = win.gBrowser.selectedBrowser;
+  const group = await addTabsInNewGroup(
+    win,
+    ["https://example.com/one", "https://example.com/two"],
+    { label: "Group one", color: "blue" }
+  );
+
+  await SpecialPowers.spawn(browser, [group.id], async groupId => {
+    content.document
+      .querySelector("ai-window")
+      .shadowRoot.querySelector("#ai-window-smartbar")
+      .addContextMention({
+        type: "tabGroup",
+        groupId,
+        label: "Group one",
+        color: "blue",
+      });
+  });
+  await typeInSmartbar(browser, "summarize these");
+  await waitForSmartbarAction(browser, "chat");
+  await submitSmartbar(browser);
+
+  const events = Glean.smartWindow.chatSubmit.testGetValue();
+  Assert.equal(events.length, 1, "Should have one chat_submit event");
+  Assert.equal(
+    events[0].extra.tabs,
+    "1",
+    "chat_submit counts the mentioned tab group once"
+  );
+
+  await BrowserTestUtils.closeWindow(win);
+});
+
 add_task(
   async function test_smartbar_telemetry_chat_submit_locked_over_guess() {
     await resetTelemetry();
@@ -687,6 +724,11 @@ add_task(async function test_smartbar_telemetry_mention_select_inline() {
     "mention_select has correct mentions_available"
   );
   Assert.equal(
+    extra.mention_type,
+    "tab",
+    "mention_select reports a tab selection"
+  );
+  Assert.equal(
     extra.message_seq,
     "0",
     "mention_select has correct message_seq"
@@ -1017,6 +1059,11 @@ add_task(async function test_smartbar_telemetry_add_tabs_selection() {
     extra.tabs_selected,
     "1",
     "add_tabs_selection has correct tabs_selected"
+  );
+  Assert.equal(
+    extra.mention_type,
+    "tab",
+    "add_tabs_selection reports a tab selection"
   );
 
   await BrowserTestUtils.closeWindow(win);

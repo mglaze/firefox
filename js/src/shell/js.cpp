@@ -11062,6 +11062,9 @@ static ExtraGlobalBindingWithHelp extraGlobalBindingsWithHelp[] = {
 "      Getter with JSJitInfo.slotIndex\n"
 "    FakeDOMObject.prototype.global\n"
 "      Getter/setter with JSJitInfo::AliasEverything\n"
+"    FakeDOMObject.prototype.pendingGlobalProperties\n"
+"      Setting this to N makes the next get define N new global properties,\n"
+"      even though the getter has JSJitInfo::AliasNone\n"
 "    FakeDOMObject.prototype.doFoo()\n"
 "      Method with JSJitInfo\n"
 "    FakeDOMObject.prototype.getObject()\n"
@@ -11520,6 +11523,48 @@ static bool dom_set_global(JSContext* cx, HandleObject obj, void* self,
   return true;
 }
 
+// Number of new global properties that the next call to the
+// FakeDOMObject.prototype.pendingGlobalProperties getter will define.
+static mozilla::Atomic<uint32_t> sFakeDOMPendingGlobalProperties(0);
+
+static bool dom_get_pendingGlobalProperties(JSContext* cx, HandleObject obj,
+                                            void* self,
+                                            JSJitGetterCallArgs args) {
+  MOZ_ASSERT(JS::GetClass(obj) == GetDomClass());
+  MOZ_ASSERT(self == DOM_PRIVATE_VALUE);
+
+  // Define new properties on the global, like a Gecko DOM getter that lazily
+  // defines interface constructors while creating a reflector. This may
+  // reallocate the global's dynamic slots.
+  static mozilla::Atomic<uint32_t> counter(0);
+  RootedObject global(cx, cx->global());
+  uint32_t count = sFakeDOMPendingGlobalProperties.exchange(0);
+  for (uint32_t i = 0; i < count; i++) {
+    char name[32];
+    SprintfLiteral(name, "__fakeDOMGlobalProp%u", uint32_t(counter++));
+    if (!JS_DefineProperty(cx, global, name, UndefinedHandleValue, 0)) {
+      return false;
+    }
+  }
+
+  args.rval().setUndefined();
+  return true;
+}
+
+static bool dom_set_pendingGlobalProperties(JSContext* cx, HandleObject obj,
+                                            void* self,
+                                            JSJitSetterCallArgs args) {
+  MOZ_ASSERT(JS::GetClass(obj) == GetDomClass());
+  MOZ_ASSERT(self == DOM_PRIVATE_VALUE);
+
+  if (!args[0].isInt32() || args[0].toInt32() < 0) {
+    JS_ReportErrorASCII(cx, "Expected a non-negative int32");
+    return false;
+  }
+  sFakeDOMPendingGlobalProperties = uint32_t(args[0].toInt32());
+  return true;
+}
+
 static bool dom_doFoo(JSContext* cx, HandleObject obj, void* self,
                       const JSJitMethodCallArgs& args) {
   MOZ_ASSERT(JS::GetClass(obj) == GetDomClass());
@@ -11618,6 +11663,40 @@ static const JSJitInfo dom_global_getterinfo = {
     0                           /* slotIndex */
 };
 
+// Note: an AliasNone getter that may define properties on the global,
+// to mimic lazily initialized DOM constructors.
+static const JSJitInfo dom_pendingGlobalProperties_getterinfo = {
+    {(JSJitGetterOp)dom_get_pendingGlobalProperties},
+    {0}, /* protoID */
+    {0}, /* depth */
+    JSJitInfo::Getter,
+    JSJitInfo::AliasNone, /* aliasSet */
+    JSVAL_TYPE_UNDEFINED, /* returnType */
+    false,                /* isInfallible. False in setters. */
+    false,                /* isMovable */
+    false,                /* isEliminatable */
+    false,                /* isAlwaysInSlot */
+    false,                /* isLazilyCachedInSlot */
+    false,                /* isTypedMethod */
+    0                     /* slotIndex */
+};
+
+static const JSJitInfo dom_pendingGlobalProperties_setterinfo = {
+    {(JSJitGetterOp)dom_set_pendingGlobalProperties},
+    {0}, /* protoID */
+    {0}, /* depth */
+    JSJitInfo::Setter,
+    JSJitInfo::AliasEverything, /* aliasSet */
+    JSVAL_TYPE_UNKNOWN,         /* returnType */
+    false,                      /* isInfallible. False in setters. */
+    false,                      /* isMovable. */
+    false,                      /* isEliminatable. */
+    false,                      /* isAlwaysInSlot */
+    false,                      /* isLazilyCachedInSlot */
+    false,                      /* isTypedMethod */
+    0                           /* slotIndex */
+};
+
 static const JSJitInfo dom_global_setterinfo = {
     {(JSJitGetterOp)dom_set_global},
     {0}, /* protoID */
@@ -11675,6 +11754,10 @@ static const JSPropertySpec dom_props[] = {
     JSPropertySpec::nativeAccessors("global", JSPROP_ENUMERATE,
                                     dom_genericGetter, &dom_global_getterinfo,
                                     dom_genericSetter, &dom_global_setterinfo),
+    JSPropertySpec::nativeAccessors(
+        "pendingGlobalProperties", JSPROP_ENUMERATE, dom_genericGetter,
+        &dom_pendingGlobalProperties_getterinfo, dom_genericSetter,
+        &dom_pendingGlobalProperties_setterinfo),
     JS_PS_END,
 };
 

@@ -108,9 +108,9 @@ int main(int argc, char** argv) {
               argv[0]);
       return 1;
     }
-  }
+  } else
 #endif
-  if (!screenshot) {
+  {
     GdkWindow* window = gdk_get_default_root_window();
     screenshot =
         gdk_pixbuf_get_from_window(window, 0, 0, gdk_window_get_width(window),

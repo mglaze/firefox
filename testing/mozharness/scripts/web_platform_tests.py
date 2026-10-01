@@ -366,7 +366,7 @@ class WebPlatformTest(TestingMixin, MercurialScript, CodeCoverageMixin, AndroidM
 
         mozinfo.find_and_update_from_json(dirs["abs_test_install_dir"])
 
-        raw_log_file, error_summary_file, _test_summary_file = self.get_indexed_logs(
+        raw_log_file, error_summary_file, test_summary_file = self.get_indexed_logs(
             dirs["abs_blob_upload_dir"], "wpt"
         )
 
@@ -375,6 +375,7 @@ class WebPlatformTest(TestingMixin, MercurialScript, CodeCoverageMixin, AndroidM
             "--log-wptreport=%s"
             % os.path.join(dirs["abs_blob_upload_dir"], "wptreport.json"),
             "--log-errorsummary=%s" % error_summary_file,
+            "--log-testsummary=%s" % test_summary_file,
             "--symbols-path=%s" % self.symbols_path,
             "--stackwalk-binary=%s" % self.query_minidump_stackwalk(),
             "--stackfix-dir=%s" % os.path.join(dirs["abs_test_install_dir"], "bin"),
@@ -776,6 +777,8 @@ class WebPlatformTest(TestingMixin, MercurialScript, CodeCoverageMixin, AndroidM
                     output_parser=parser,
                     env=final_env,
                 )
+
+                self.append_test_summary(dirs["abs_blob_upload_dir"])
 
                 if self.per_test_coverage:
                     self.add_per_test_coverage_report(

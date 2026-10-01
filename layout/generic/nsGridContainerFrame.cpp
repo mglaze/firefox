@@ -5312,7 +5312,7 @@ void nsGridContainerFrame::Grid::PlaceGridItems(
   bool needToRecordAutoFlowCounter =
       gridStyle->mGridTemplateColumns.IsNone() &&
       !gridStyle->mGridTemplateRows.IsNone() &&
-      !aGridRI.mFrame->Style()->HasAuthorSpecifiedGridAutoFlow();
+      !aGridRI.mFrame->Style()->HasAuthorOrUserSpecifiedGridAutoFlow();
 
   for (; !aGridRI.mIter.AtEnd(); aGridRI.mIter.Next()) {
     nsIFrame* child = *aGridRI.mIter;
@@ -5932,12 +5932,25 @@ static nscoord ContentContribution(const GridItemInfo& aGridItem,
 
   gfxContext* rc = &aGridRI.mRenderingContext;
   PhysicalAxis axis = gridWM.PhysicalAxis(aAxis);
-  nscoord size = nsLayoutUtils::IntrinsicForAxis(
-      axis, rc, child, aConstraint, Some(aPercentageBasis),
-      nsLayoutUtils::BAIL_IF_REFLOW_NEEDED, aMinSizeClamp, aOverrides);
   auto childWM = child->GetWritingMode();
   const bool isOrthogonal = childWM.IsOrthogonalTo(gridWM);
   auto childAxis = isOrthogonal ? GetOrthogonalAxis(aAxis) : aAxis;
+
+  StyleSizeOverrides overrides = aOverrides;
+  if (childAxis == LogicalAxis::Inline && !overrides.mStyleBSize) {
+    const bool stretchesInBlockAxis =
+        child->StylePosition()
+            ->BSize(childWM, AnchorPosResolutionParams::From(child))
+            ->IsAuto() &&
+        aGridRI.mFrame->GridItemShouldStretch(child, LogicalAxis::Block);
+    if (stretchesInBlockAxis) {
+      overrides.mStyleBSize.emplace(StyleSize::Stretch());
+    }
+  }
+
+  nscoord size = nsLayoutUtils::IntrinsicForAxis(
+      axis, rc, child, aConstraint, Some(aPercentageBasis),
+      nsLayoutUtils::BAIL_IF_REFLOW_NEEDED, aMinSizeClamp, overrides);
   if (size == NS_INTRINSIC_ISIZE_UNKNOWN && childAxis == LogicalAxis::Block) {
     if (aGridRI.mIsGridIntrinsicSizing && aAxis == LogicalAxis::Block &&
         !StaticPrefs::layout_css_grid_intrinsic_sizing_measure_bsize()) {
@@ -10097,10 +10110,13 @@ nsFrameState nsGridContainerFrame::ComputeSelfSubgridMasonryBits() const {
   const auto* pos = StylePosition();
 
   if (StyleDisplay()->DisplayInside() == StyleDisplayInside::GridLanes) {
-    // If rows are defined and columns are none → row tracks;
-    // otherwise (columns defined, both defined, or neither defined) → column
-    // tracks.
-    if (!pos->mGridTemplateRows.IsNone()) {
+    // If rows are defined and columns are none → row tracks (with inline axis
+    // being the stacking axis, i.e. there are no columns)
+    //
+    // Otherwise (columns defined, both defined, or neither defined) → column
+    // tracks (with block axis being the stacking axis, i.e. there are no rows)
+    if (!pos->mGridTemplateRows.IsNone() &&
+        pos->mGridTemplateColumns.IsNone()) {
       bits |= NS_STATE_GRID_IS_COL_MASONRY;
     } else {
       bits |= NS_STATE_GRID_IS_ROW_MASONRY;
@@ -10276,24 +10292,18 @@ nscoord nsGridContainerFrame::ComputeIntrinsicISize(
   gridRI.CalculateTrackSizesForAxis(LogicalAxis::Inline, grid,
                                     NS_UNCONSTRAINEDSIZE, constraint);
 
-  if (IsRowSubgrid()) {
-    // Our rows are the parent grid's rows. If the parent hasn't resolved them
-    // yet, we're being measured as part of its column sizing, and resolving the
-    // rows here would recurse back into the parent's column sizing.
-    const auto* subgrid = GetProperty(Subgrid::Prop());
-    const auto parentAxis =
-        subgrid->mIsOrthogonal ? LogicalAxis::Inline : LogicalAxis::Block;
-    const auto* parentSizes =
-        ParentGridContainerForSubgrid()->GetUsedTrackSizes();
-    if (!parentSizes || !parentSizes->mCanResolveLineRangeSize[parentAxis]) {
-      return gridRI.mCols.TotalTrackSizeWithoutAlignment(this);
-    }
-  }
-
   const nscoord contentBoxBSize =
       aInput.mPercentageBasisForChildren
           ? aInput.mPercentageBasisForChildren->BSize(gridRI.mWM)
           : NS_UNCONSTRAINEDSIZE;
+
+  if (IsRowSubgrid() && contentBoxBSize == NS_UNCONSTRAINEDSIZE) {
+    // Our rows are the parent grid's rows, and IntrinsicISize() gave us their
+    // size as our percentage basis. If it's indefinite, the parent hasn't
+    // resolved them yet: we're being measured as part of its column sizing,
+    // and resolving the rows here would recurse back into it.
+    return gridRI.mCols.TotalTrackSizeWithoutAlignment(this);
+  }
 
   // Resolve row sizes so that when we re-resolve the column sizes, grid items
   // with percent-valued block-sizes (and aspect ratios) have definite row

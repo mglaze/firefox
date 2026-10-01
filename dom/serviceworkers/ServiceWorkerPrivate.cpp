@@ -63,6 +63,7 @@
 #include "mozilla/ipc/URIUtils.h"
 #include "mozilla/net/CookieJarSettings.h"
 #include "mozilla/net/CookieService.h"
+#include "mozilla/net/HttpBaseChannel.h"
 #include "mozilla/net/NeckoChannelParams.h"
 #include "nsContentUtils.h"
 #include "nsDebug.h"
@@ -82,6 +83,7 @@
 #include "nsISupportsImpl.h"
 #include "nsISupportsPriority.h"
 #include "nsIURI.h"
+#include "nsIUploadChannel.h"
 #include "nsIUploadChannel2.h"
 #include "nsNetUtil.h"
 #include "nsPrintfCString.h"
@@ -452,8 +454,24 @@ nsresult MaybeStoreStreamForBackgroundThread(nsIInterceptedChannel* aChannel,
 
   if (uploadChannel) {
     nsCOMPtr<nsIInputStream> uploadStream;
-    MOZ_TRY(uploadChannel->CloneUploadStream(&aIPCRequest.bodySize(),
-                                             getter_AddRefs(uploadStream)));
+    RefPtr<net::HttpBaseChannel> httpBase = do_QueryObject(channel);
+    if (httpBase && httpBase->UploadStreamIsStreaming()) {
+      // Transfer streaming uploads to the worker; fallback returns its unread
+      // body instead of replaying a clone. AddStream() below starts draining
+      // this stream into a cloneable replacement pipe, so the channel's own
+      // mUploadStream is consumed from here on and can only be reset if the
+      // worker returns the stream.
+      nsCOMPtr<nsIUploadChannel> uploadChannel1 = do_QueryInterface(channel);
+      if (uploadChannel1) {
+        MOZ_TRY(uploadChannel1->GetUploadStream(getter_AddRefs(uploadStream)));
+      }
+      // The length is only known once the stream ends.
+      aIPCRequest.bodySize() = -1;
+      aIPCRequest.hasStreamBody() = !!uploadStream;
+    } else {
+      MOZ_TRY(uploadChannel->CloneUploadStream(&aIPCRequest.bodySize(),
+                                               getter_AddRefs(uploadStream)));
+    }
 
     if (uploadStream) {
       Maybe<BodyStreamVariant>& body = aIPCRequest.body();

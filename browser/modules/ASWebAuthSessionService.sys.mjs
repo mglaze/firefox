@@ -9,6 +9,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   ContextualIdentityService:
     "moz-src:///toolkit/components/contextualidentity/ContextualIdentityService.sys.mjs",
   EveryWindow: "resource:///modules/EveryWindow.sys.mjs",
+  SessionStore:
+    "moz-src:///browser/components/sessionstore/SessionStore.sys.mjs",
   URILoadingHelper: "resource:///modules/URILoadingHelper.sys.mjs",
 });
 
@@ -587,6 +589,13 @@ export const ASWebAuthSessionService = new (class ASWebAuthSessionService {
     let userContextId = 0;
     let win = null;
     try {
+      // Wait for the startup windows, including restored ones, to open first so
+      // that the auth window opens after them and appears in front.
+      await lazy.SessionStore.promiseAllWindowsRestored;
+      if (pending.cancelled) {
+        return;
+      }
+
       if (ephemeral) {
         let container = await lazy.ContextualIdentityService.create(
           EPHEMERAL_CONTAINER_PREFIX + uuid,

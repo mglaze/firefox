@@ -689,7 +689,7 @@ CookieService::GetCookies(nsTArray<RefPtr<nsICookie>>& aCookies) {
   mPersistentStorage->EnsureInitialized();
 
   // We expose only non-private cookies.
-  mPersistentStorage->GetCookies(aCookies);
+  mPersistentStorage->GetAll(aCookies);
 
   return NS_OK;
 }
@@ -997,7 +997,6 @@ void CookieService::GetCookiesForURI(
         nsMixedContentBlocker::IsPotentiallyTrustworthyOrigin(aHostURI);
 
     int64_t currentTimeInUsec = PR_Now();
-    int64_t currentTimeInMSec = currentTimeInUsec / PR_USEC_PER_MSEC;
     bool stale = false;
 
     nsTArray<RefPtr<Cookie>> cookies;
@@ -1035,11 +1034,6 @@ void CookieService::GetCookiesForURI(
 
       // if the nsIURI path doesn't match the cookie path, don't send it back
       if (!CookieCommons::PathMatches(cookie, pathFromURI)) {
-        continue;
-      }
-
-      // check if the cookie has expired
-      if (cookie->IsExpired(currentTimeInMSec)) {
         continue;
       }
 
@@ -1331,53 +1325,6 @@ CookieService::GetCookieNative(const nsACString& aHost, const nsACString& aPath,
   return NS_OK;
 }
 
-// count the number of cookies stored by a particular host. this is provided by
-// the nsICookieManager interface.
-NS_IMETHODIMP
-CookieService::CountCookiesFromHost(const nsACString& aHost,
-                                    JS::Handle<JS::Value> aOriginAttributes,
-                                    JSContext* aCx, uint32_t* aCountFromHost) {
-  OriginAttributes attrs;
-  if (!aOriginAttributes.isObject() || !attrs.Init(aCx, aOriginAttributes)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  return CountCookiesFromHostNative(aHost, &attrs, aCountFromHost);
-}
-
-NS_IMETHODIMP_(nsresult)
-CookieService::CountCookiesFromHostNative(const nsACString& aHost,
-                                          OriginAttributes* aOriginAttributes,
-                                          uint32_t* aCountFromHost) {
-  NS_ENSURE_ARG_POINTER(aOriginAttributes);
-  NS_ENSURE_ARG_POINTER(aCountFromHost);
-
-  // first, normalize the hostname, and fail if it contains illegal characters.
-  nsAutoCString host(aHost);
-  nsresult rv = NormalizeHost(host);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoCString baseDomain;
-  rv = CookieCommons::GetBaseDomainFromHost(mTLDService, host, baseDomain);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!IsInitialized()) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  CookieStorage* storage = PickStorage(*aOriginAttributes);
-
-  uint32_t count = 0;
-  storage->ForEachCookie(baseDomain, *aOriginAttributes, [&](Cookie*) {
-    ++count;
-    return true;
-  });
-
-  *aCountFromHost = count;
-
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 CookieService::HasCookiesForSite(const nsACString& aHost,
                                  const nsAString& aPattern, bool* aResult) {
@@ -1404,19 +1351,7 @@ CookieService::HasCookiesForSite(const nsACString& aHost,
   CookieStorage* storage = PickStorage(pattern);
   storage->EnsureInitialized();
 
-  int64_t currentTimeInMSec = PR_Now() / PR_USEC_PER_MSEC;
-  bool hasCookies = false;
-
-  storage->ForEachCookie(baseDomain, pattern, [&](Cookie* aCookie) {
-    if (aCookie->IsExpired(currentTimeInMSec)) {
-      return true;
-    }
-
-    hasCookies = true;
-    return false;
-  });
-
-  *aResult = hasCookies;
+  *aResult = storage->HasCookies(baseDomain, pattern);
   return NS_OK;
 }
 
@@ -1638,7 +1573,8 @@ CookieService::RemoveAllSince(int64_t aSinceWhen, JSContext* aCx,
   nsTArray<RefPtr<nsICookie>> cookieList;
 
   // We delete only non-private cookies.
-  mPersistentStorage->GetAll(cookieList);
+  mPersistentStorage->GetAll(cookieList,
+                             CookieStorage::ExpiredCookies::Include);
 
   RefPtr<RemoveAllSinceRunnable> runMe = new RemoveAllSinceRunnable(
       promise, this, std::move(cookieList), aSinceWhen);
@@ -1796,11 +1732,6 @@ void CookieService::GetCookiesFromHost(
 
   CookieStorage* storage = PickStorage(aOriginAttributes);
   storage->GetCookiesFromHost(aBaseDomain, aOriginAttributes, aCookies);
-
-  int64_t currentTimeInMSec = PR_Now() / PR_USEC_PER_MSEC;
-  aCookies.RemoveElementsBy([currentTimeInMSec](const RefPtr<Cookie>& aCookie) {
-    return aCookie->IsExpired(currentTimeInMSec);
-  });
 }
 
 void CookieService::StaleCookies(const nsTArray<RefPtr<Cookie>>& aCookies,
@@ -1831,20 +1762,7 @@ bool CookieService::HasExistingCookies(
   }
 
   CookieStorage* storage = PickStorage(aOriginAttributes);
-
-  int64_t currentTimeInMSec = PR_Now() / PR_USEC_PER_MSEC;
-  bool hasExistingCookies = false;
-
-  storage->ForEachCookie(aBaseDomain, aOriginAttributes, [&](Cookie* aCookie) {
-    if (aCookie->IsExpired(currentTimeInMSec)) {
-      return true;
-    }
-
-    hasExistingCookies = true;
-    return false;
-  });
-
-  return hasExistingCookies;
+  return storage->HasCookies(aBaseDomain, aOriginAttributes);
 }
 
 void CookieService::AddCookieFromDocument(

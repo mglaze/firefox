@@ -4174,6 +4174,14 @@ pref("extensions.formautofill.creditCards.cvv.supported", "off");
 // FormAutofill.isAutofillCreditCardCVVEnabled.
 pref("extensions.formautofill.creditCards.cvv.enabled", true);
 
+// Leave a field whose autocomplete attribute is present but cannot be parsed
+// into a known field name, e.g. autocomplete="shopify checkout", out of
+// autofill entirely: it is offered no dropdown of its own, and it is not
+// filled when autofill is triggered from another field in the same form.
+// Treated as a signal that the site provides its own suggestion UI. A field
+// with no autocomplete attribute, or with "off"/"on", is unaffected.
+pref("extensions.formautofill.suppressUnrecognizedAutocomplete.enabled", false);
+
 // Supported countries need to follow ISO 3166-1 to align with "browser.search.region"
 pref("extensions.formautofill.creditCards.supportedCountries", "US,CA,GB,FR,DE,IT,ES,AT,BE,PL");
 

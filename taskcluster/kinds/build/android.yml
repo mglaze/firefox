@@ -750,5 +750,6 @@ android-x86_64-appservices/debug:
     fetches:
         toolchain:
             - linux64-clang
+            - linux64-rust-android
             - linux64-sccache
             - android-gradle-dependencies-appservices

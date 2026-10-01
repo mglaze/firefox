@@ -115,7 +115,7 @@ const lazy = XPCOMUtils.declareLazy({
  */
 class _TabState {
   /**
-   * Processes a data update sent by the content script.
+   * Processes a data update collected for a browser.
    */
   update(permanentKey, { data }) {
     lazy.TabStateCache.update(permanentKey, data);

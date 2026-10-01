@@ -152,6 +152,7 @@ export PKG_CONFIG_LIBDIR
 endif
 export RUST_BACKTRACE=full
 export MOZ_TOPOBJDIR=$(topobjdir)
+export MOZ_TOPSRCDIR=$(topsrcdir)
 export MOZ_FOLD_LIBS
 GLEAN_PYTHON_VENV_DIR = $(GLEAN_PARSER_VENV)
 export GLEAN_PYTHON_VENV_DIR
@@ -270,17 +271,6 @@ endif
 
 $(TARGET_RECIPES): MOZ_CARGO_WRAP_LDFLAGS:=$(filter-out $(MOZ_CARGO_LDFLAGS_FILTER_OUT),$(LDFLAGS))
 force-cargo-program-build: MOZ_CARGO_WRAP_LDFLAGS:=$(filter-out $(MOZ_CARGO_PROGRAM_LDFLAGS_FILTER_OUT),$(MOZ_CARGO_WRAP_LDFLAGS))
-
-ifdef MOZ_RUST_PROGRAM_LDFLAGS
-force-cargo-program-build: MOZ_CARGO_WRAP_LDFLAGS+=$(MOZ_RUST_PROGRAM_LDFLAGS)
-endif
-# The run_cargo action adds these flags itself, and appends any CARGO_RUSTCFLAGS
-# it inherits, so only the Make path adds them here.
-ifdef MOZ_USE_LEGACY_CARGO_INVOCATION
-ifdef MOZ_RUST_PROGRAM_RUSTCFLAGS
-force-cargo-program-build: CARGO_RUSTCFLAGS += $(MOZ_RUST_PROGRAM_RUSTCFLAGS)
-endif
-endif
 
 $(TARGET_RECIPES): RUSTFLAGS += $(MOZ_RUSTFLAGS_DEFAULT_LINKER_LIBRARIES)
 

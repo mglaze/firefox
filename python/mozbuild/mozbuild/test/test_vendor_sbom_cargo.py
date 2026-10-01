@@ -2,7 +2,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import json
 import os
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -190,6 +192,32 @@ class TestCrateRecords(unittest.TestCase):
         # An unconfigured tree has no vendored-source config for cargo to use.
         self.assertEqual(
             collect_dependency_kinds(self.topsrcdir, "/nonexistent/objdir"), {}
+        )
+
+    def test_cargo_metadata_utf8(self):
+        topobjdir = os.path.join(self.topsrcdir, "obj")
+        os.makedirs(os.path.join(topobjdir, ".cargo"))
+        metadata = {
+            "workspace_members": ["gkrust@0.1.0"],
+            "packages": [
+                package("gkrust", "0.1.0", source=None),
+                {**package("serde", "1.0.200"), "description": "с"},
+            ],
+            "resolve": {
+                "nodes": [
+                    node("gkrust", "0.1.0", [("serde", "1.0.200", None)]),
+                    node("serde", "1.0.200", []),
+                ]
+            },
+        }
+        output = json.dumps(metadata, ensure_ascii=False).encode("utf-8")
+        with open(
+            os.path.join(self.topsrcdir, "metadata"), "w", encoding="utf-8"
+        ) as fh:
+            fh.write(f"import sys\nsys.stdout.buffer.write({output!r})\n")
+        self.assertEqual(
+            collect_dependency_kinds(self.topsrcdir, topobjdir, sys.executable),
+            {("serde", "1.0.200"): ["normal"]},
         )
 
     def test_missing_cargo_lock_is_not_an_error(self):

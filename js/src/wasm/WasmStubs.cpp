@@ -2648,9 +2648,10 @@ static const LiveRegisterSet RegsToPreserve(
                          (uint32_t(1) << Registers::fp) |
                          (uint32_t(1) << Registers::sp) |
                          (uint32_t(1) << Registers::zero))),
-    FloatRegisterSet(FloatRegisters::AllDoubleMask));
 #  ifdef ENABLE_JIT_SIMD
-#    error "high lanes of SIMD registers need to be saved too."
+    FloatRegisterSet(FloatRegisters::AllSimd128Mask));
+#  else
+    FloatRegisterSet(FloatRegisters::AllDoubleMask));
 #  endif
 #elif defined(JS_CODEGEN_RISCV64)
 static const LiveRegisterSet RegsToPreserve(
@@ -3165,6 +3166,16 @@ static bool GenerateThrowStub(MacroAssembler& masm, Label* throwLabel,
 
   // Allocate space for exception or regular resume information.
   masm.reserveStack(sizeof(jit::ResumeFromException));
+#ifdef JS_HW_SHADOW_STACK
+  // Read the shadow stack pointer on entry to HandleThrow so
+  // that the exception handling logic knows the shadow stack entry
+  // corresponding to where JIT/WASM frame iteration begins.
+  masm.moveShadowStackPtrTo(scratch1);
+  masm.storePtr(
+      scratch1,
+      Address(masm.getStackPointer(),
+              jit::ResumeFromException::offsetOfShadowStackPointer()));
+#endif
   masm.moveStackPtrTo(scratch1);
 
   MIRTypeVector handleThrowTypes;

@@ -167,7 +167,7 @@ class PrivacyReportNotificationWorker(
         /**
          * Schedule the first privacy report notification. The first occurrence is anchored to onboarding completion.
          *
-         * Users who never completed onboarding have no timestamp to anchor to, so they're left out of this feature.
+         * Callers must ensure that onboarding has been completed before calling this function.
          */
         fun schedule(
             context: Context,
@@ -175,10 +175,6 @@ class PrivacyReportNotificationWorker(
             dateTimeProvider: DateTimeProvider = DefaultDateTimeProvider(),
         ) {
             val onboardingCompletedTimestamp = settings.onboardingCompletedTimestamp
-            if (onboardingCompletedTimestamp < 0) {
-                logger.info("Onboarding is not yet completed.")
-                return
-            }
 
             val zoneId = dateTimeProvider.currentZoneId()
             val now = dateTimeProvider.currentTimeMillis()

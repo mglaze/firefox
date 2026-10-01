@@ -14,10 +14,10 @@
 #include "mozilla/net/urlpattern_glue.h"
 #include "nsCOMPtr.h"
 #include "nsISupportsImpl.h"
+#include "nsIURI.h"
 #include "nsString.h"
 #include "nsTArray.h"
 
-class nsIURI;
 class nsILoadInfo;
 
 namespace mozilla::ipc {

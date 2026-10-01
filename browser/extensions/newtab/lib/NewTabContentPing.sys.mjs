@@ -307,10 +307,14 @@ export class NewTabContentPing {
       delete result.variant_id;
       delete result.source_section_id;
     }
-    // Bug 2067937: section_position can't be kept consistent for randomized
-    // (DP-noised) content, so it is not collected on the impression and click
-    // events of the newtab_content ping.
-    if (eventName === "impression" || eventName === "click") {
+    // @backward-compat { version 158 } Bug 2067937: section_position was
+    // removed from the newtab_content impression/click extra_keys in 157 and
+    // restored in 159. Drop it on 157 and 158 builds to avoid a Glean error.
+    if (
+      (eventName === "impression" || eventName === "click") &&
+      Services.vc.compare(AppConstants.MOZ_APP_VERSION, "157.0a1") >= 0 &&
+      Services.vc.compare(AppConstants.MOZ_APP_VERSION, "159.0a1") < 0
+    ) {
       delete result.section_position;
     }
     return result;

@@ -12,6 +12,10 @@ ChromeUtils.defineESModuleGetters(this, {
     "moz-src:///browser/components/sessionstore/SessionStore.sys.mjs",
 });
 
+const { sinon } = ChromeUtils.importESModule(
+  "resource://testing-common/Sinon.sys.mjs"
+);
+
 const TEST_BASE = "https://example.com/browser/browser/modules/test/browser/";
 const LOGIN_URL = TEST_BASE + "browser_aswebauth_form.sjs";
 const CALLBACK_SCHEME = "data";
@@ -581,6 +585,12 @@ add_task(async function test_external_cancel_before_window_opens() {
         return;
       }
       Services.ww.unregisterNotification(observer);
+      // The window is still opening, so the session is only a pending setup.
+      Services.obs.notifyObservers(
+        null,
+        "aswebauthsession-request-cancel",
+        uuid
+      );
       resolve(subject);
     });
   });
@@ -591,8 +601,6 @@ add_task(async function test_external_cancel_before_window_opens() {
     callbackScheme: CALLBACK_SCHEME,
     ephemeral: false,
   });
-  // The window is still opening, so the session is only a pending setup.
-  Services.obs.notifyObservers(null, "aswebauthsession-request-cancel", uuid);
 
   let data = JSON.parse(await cancelPromise);
   Assert.equal(
@@ -605,6 +613,100 @@ add_task(async function test_external_cancel_before_window_opens() {
   await BrowserTestUtils.domWindowClosed(win);
   Assert.ok(win.closed, "the half-opened auth window is closed again");
 });
+
+add_task(async function test_waits_for_session_restore() {
+  let restored = Promise.withResolvers();
+  let sandbox = sinon.createSandbox();
+  sandbox
+    .stub(SessionStore, "promiseAllWindowsRestored")
+    .get(() => restored.promise);
+
+  let windowOpened = false;
+  let onWindowOpen = (subject, topic) => {
+    if (topic == "domwindowopened") {
+      windowOpened = true;
+    }
+  };
+  Services.ww.registerNotification(onWindowOpen);
+
+  let uuid = newUUID();
+  let winPromise = BrowserTestUtils.waitForNewWindow();
+  startAuthSession({
+    url: LOGIN_URL,
+    uuid,
+    callbackScheme: CALLBACK_SCHEME,
+    ephemeral: false,
+  });
+
+  await TestUtils.waitForTick();
+  Services.ww.unregisterNotification(onWindowOpen);
+  Assert.ok(
+    !windowOpened,
+    "no auth window opens before session restore has finished"
+  );
+
+  restored.resolve();
+  sandbox.restore();
+  let win = await winPromise;
+  Assert.ok(
+    win.document.documentElement.hasAttribute("aswebauth"),
+    "the auth window opens once session restore has finished"
+  );
+
+  let cancelPromise = waitForObserver("aswebauthsession-test-cancel");
+  await BrowserTestUtils.closeWindow(win);
+  let data = JSON.parse(await cancelPromise);
+  Assert.equal(data.uuid, uuid, "closing the auth window cancels");
+});
+
+add_task(
+  async function test_external_cancel_while_waiting_for_session_restore() {
+    let restored = Promise.withResolvers();
+    let sandbox = sinon.createSandbox();
+    sandbox
+      .stub(SessionStore, "promiseAllWindowsRestored")
+      .get(() => restored.promise);
+
+    let windowOpened = false;
+    let onWindowOpen = (subject, topic) => {
+      if (topic == "domwindowopened") {
+        windowOpened = true;
+      }
+    };
+    Services.ww.registerNotification(onWindowOpen);
+
+    let cancelCount = 0;
+    let cancelObs = {
+      observe() {
+        cancelCount++;
+      },
+    };
+    Services.obs.addObserver(cancelObs, "aswebauthsession-test-cancel");
+
+    let uuid = newUUID();
+    startAuthSession({
+      url: LOGIN_URL,
+      uuid,
+      callbackScheme: CALLBACK_SCHEME,
+      ephemeral: false,
+    });
+    Services.obs.notifyObservers(null, "aswebauthsession-request-cancel", uuid);
+    Assert.equal(cancelCount, 1, "a native cancel is answered right away");
+
+    restored.resolve();
+    sandbox.restore();
+    await TestUtils.waitForTick();
+    Services.ww.unregisterNotification(onWindowOpen);
+    Services.obs.removeObserver(cancelObs, "aswebauthsession-test-cancel");
+
+    Assert.equal(cancelCount, 1, "the request is answered only once");
+    Assert.ok(!windowOpened, "no auth window opens for a cancelled request");
+    Assert.ok(
+      !ASWebAuthSessionService.pendingSetups.has(uuid),
+      "the pending setup is gone"
+    );
+  }
+);
 
 add_task(async function test_original_auth_tab_close_cancels() {
   let uuid = newUUID();

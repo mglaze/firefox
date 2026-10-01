@@ -132,14 +132,6 @@ void CanvasShutdownManager::RemoveShutdownObserver(
   mActiveCanvas.erase(aCanvas);
 }
 
-void CanvasShutdownManager::OnWindowDestroy(nsIGlobalObject* aParent) {
-  for (const auto& canvas : RefActiveCanvas()) {
-    if (canvas->GetParentObject() == aParent) {
-      canvas->OnWindowDestroy();
-    }
-  }
-}
-
 void CanvasShutdownManager::OnRemoteCanvasLost() {
   for (const auto& canvas : RefActiveCanvas()) {
     canvas->OnRemoteCanvasLost();

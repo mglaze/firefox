@@ -76,6 +76,10 @@ class PKCS11ModuleDB : public nsIPKCS11ModuleDB {
                                                const nsCString& oldPassword,
                                                const nsCString& newPassword);
 
+  typedef MozPromise<nsTArray<Certificate>, nsresult, true>
+      FindCertificatesPromise;
+  RefPtr<FindCertificatesPromise> FindCertificates();
+
  private:
   static RefPtr<TokenInfoPromise> ResetTokenGivenParent(
       const RefPtr<PKCS11ModuleParent>& parent, SECMODModuleID moduleID,
@@ -91,12 +95,16 @@ class PKCS11ModuleDB : public nsIPKCS11ModuleDB {
       const RefPtr<PKCS11ModuleParent>& parent, SECMODModuleID moduleID,
       CK_SLOT_ID slotID, const nsCString& oldPassword,
       const nsCString& newPassword);
+
+  static RefPtr<FindCertificatesPromise> FindCertificatesGivenParent(
+      const RefPtr<PKCS11ModuleParent>& parent);
 #endif  // NIGHTLY_BUILD && !MOZ_NO_SMART_CARDS
 };
 
 const nsLiteralCString kIPCClientCertsModuleName("IPC Client Cert Module");
 const nsLiteralCString kNSSInternalModuleName("NSS Internal PKCS #11 Module");
 const nsLiteralCString kOSClientCertsModuleName("OS Client Cert Module");
+const nsLiteralCString kRemoteCertsModuleName("Remote Certs Module");
 const nsLiteralCString kRootModuleName("Builtin Roots Module");
 
 void CollectThirdPartyPKCS11ModuleTelemetry(bool aIsInitialization = false);

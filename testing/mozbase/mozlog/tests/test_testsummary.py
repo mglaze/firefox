@@ -67,6 +67,11 @@ from mozlog.formatters import TestSummaryFormatter
             {"action": "tsan_error", "stack": "race"}, False, id="tsan_error_dropped"
         ),
         pytest.param(
+            {"action": "assertion_failure", "kind": "MOZ_ASSERT", "stack": []},
+            False,
+            id="assertion_failure_dropped",
+        ),
+        pytest.param(
             {"action": "group_start", "name": "manifestA"}, True, id="group_start_kept"
         ),
         pytest.param(

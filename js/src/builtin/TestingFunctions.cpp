@@ -2343,7 +2343,12 @@ static bool WasmDumpIon(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
-enum class Flag { Tier2Complete, Deserialized, ParsedBranchHints };
+enum class Flag {
+  Tier2Complete,
+  Deserialized,
+  ParsedBranchHints,
+  ParsedNameSection
+};
 
 static bool WasmReturnFlag(JSContext* cx, unsigned argc, Value* vp, Flag flag) {
   CallArgs args = CallArgsFromVp(argc, vp);
@@ -2370,6 +2375,9 @@ static bool WasmReturnFlag(JSContext* cx, unsigned argc, Value* vp, Flag flag) {
       break;
     case Flag::ParsedBranchHints:
       b = !module->module().codeMeta().branchHints.failedParse();
+      break;
+    case Flag::ParsedNameSection:
+      b = module->module().codeMeta().nameSection.isSome();
       break;
   }
 
@@ -2447,6 +2455,10 @@ static bool WasmParsedBranchHints(JSContext* cx, unsigned argc, Value* vp) {
   return WasmReturnFlag(cx, argc, vp, Flag::ParsedBranchHints);
 }
 #endif  // ENABLE_WASM_BRANCH_HINTING
+
+static bool WasmParsedNameSection(JSContext* cx, unsigned argc, Value* vp) {
+  return WasmReturnFlag(cx, argc, vp, Flag::ParsedNameSection);
+}
 
 static bool WasmBuiltinI8VecMul(JSContext* cx, unsigned argc, Value* vp) {
   if (!wasm::HasSupport(cx)) {
@@ -11017,6 +11029,11 @@ JS_FOR_WASM_FEATURES(WASM_FEATURE)
 "  custom branch hinting section."),
 
 #endif // ENABLE_WASM_BRANCH_HINTING
+
+    JS_FN_HELP("wasmParsedNameSection", WasmParsedNameSection, 1, 0,
+"wasmParsedNameSection(module)",
+"  Returns a boolean indicating whether a given module has successfully parsed a\n"
+"  custom name section."),
 
     JS_FN_HELP("largeArrayBufferSupported", LargeArrayBufferSupported, 0, 0,
 "largeArrayBufferSupported()",

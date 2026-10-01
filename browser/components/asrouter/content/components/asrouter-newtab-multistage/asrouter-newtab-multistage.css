@@ -1842,7 +1842,7 @@ html {
 }
 @media (not (prefers-contrast)) and (-moz-pref("browser.privateWindowRedesign.enabled")) {
   .onboardingContainer .screen[pos=center].PRIVATE_WINDOW_BASICS_SCREEN {
-    background-color: rgba(0, 0, 0, 0.4);
+    background-color: rgba(0, 0, 0, 0.2);
   }
   .onboardingContainer .screen[pos=center].PRIVATE_WINDOW_BASICS_SCREEN.zap-border .main-content {
     background: linear-gradient(95.54deg, #B89CFF 20.68%, #764EDD 79.34%) border-box border-area, image(var(--background-color-box)) padding-box;

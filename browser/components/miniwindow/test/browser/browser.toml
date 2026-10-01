@@ -9,6 +9,8 @@ prefs = [
   "browser.mini-window.log=true",
 ]
 
+["browser_chooser_panel.js"]
+
 ["browser_cropped_navigation.js"]
 
 ["browser_framing.js"]

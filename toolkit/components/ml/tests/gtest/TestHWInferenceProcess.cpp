@@ -71,6 +71,7 @@ bool Kill(const Maybe<base::ProcessId>& aPid) {
 class HWInferenceProcessTest : public mozilla::gtest::ipc::TestUtilityProcess {
  protected:
   void SetUp() override { Preferences::SetUint(kMaxRestartsPref, 3); }
+  void TearDown() override { Preferences::ClearUser(kMaxRestartsPref); }
 
   bool WaitForExit() {
     return SpinUntil("Process exit", [&] { return !mProcess.IsUp(); });

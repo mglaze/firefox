@@ -23,6 +23,7 @@ tasks:
                 - '-(beta|release|nightly)(-|$)'
         attributes:
             run_on_projects: []
+            code-review: false
         dependencies:
             build-fat-aar: build-fat-aar-android-geckoview-fat-aar-appservices/opt
             toolchain-linux64-android-gradle-dependencies:

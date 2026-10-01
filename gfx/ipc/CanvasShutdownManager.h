@@ -12,8 +12,6 @@
 #include "mozilla/ThreadLocal.h"
 #include "mozilla/layers/LayersTypes.h"
 
-class nsIGlobalObject;
-
 namespace mozilla {
 namespace dom {
 class CanvasRenderingContext2D;
@@ -39,11 +37,6 @@ class CanvasShutdownManager final {
   void OnRemoteCanvasRestored();
   void OnRemoteCanvasReset(
       const nsTArray<layers::RemoteTextureOwnerId>& aOwnerIds);
-
-  // Releases the buffers of the contexts belonging to aParent, which is being
-  // torn down and can no longer display them, instead of keeping them (and
-  // any accelerated draw targets) alive until the contexts are collected.
-  void OnWindowDestroy(nsIGlobalObject* aParent);
 
  private:
   explicit CanvasShutdownManager(dom::StrongWorkerRef* aWorkerRef);

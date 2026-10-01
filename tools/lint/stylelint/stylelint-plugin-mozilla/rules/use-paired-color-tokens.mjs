@@ -28,10 +28,6 @@ let messages = ruleMessages(ruleName, {
     `"${background}" takes its text color from "${text}" on the rule this block nests in, which is not its counterpart; add "color: var(${expected})".`,
   notPaired: (background, text, expected) =>
     `"${background}" and "${text}" are not a semantic pair; use "${expected}" for the text color, or a background color that pairs with "${text}".`,
-  noPairedToken: (background, text, expected) =>
-    `"${background}" and "${text}" are different variants of the same tokens and there is no "${expected}"; file a bug for the missing token.`,
-  noPairedTokenUseBase: (background, text, expected, base) =>
-    `"${background}" and "${text}" are different variants of the same tokens and there is no "${expected}"; use "${base}" instead, or file a bug for the missing token.`,
 });
 let meta = {
   url: "https://firefox-source-docs.mozilla.org/code-quality/lint/linters/stylelint-plugin-mozilla/rules/use-paired-color-tokens.html",
@@ -310,12 +306,12 @@ let checkPair = (backgroundDeclaration, textDeclaration, result) => {
     return;
   }
 
-  // The pair the author reached for may not exist as a token, but mixing two
-  // variants of the same component's tokens is a mistake either way. The global
-  // background-color/text-color tokens have no component prefix and are meant
-  // to combine freely, so they are not variants of each other, and a component
-  // whose variant has no text color of its own is meant to fall back to the
-  // family's base one.
+  // Mixing two variants of the same component's tokens is a mistake even where
+  // neither is paired. A component with any text color has one for every
+  // background variant (the design system's tests enforce it), so the
+  // counterpart exists. The global background-color/text-color tokens have no
+  // component prefix and are meant to combine freely, so they are not variants
+  // of each other.
   for (let background of backgroundTokens.filter(isDesignToken)) {
     let backgroundName = parseColorTokenName(background);
     if (!backgroundName?.family) {
@@ -331,23 +327,13 @@ let checkPair = (backgroundDeclaration, textDeclaration, result) => {
         continue;
       }
       let expected = `--${backgroundName.family}text-color${backgroundName.variant}`;
-      let base = `--${backgroundName.family}text-color`;
-      let message;
-      let fix;
-      if (isDesignToken(expected)) {
-        message = messages.notPaired(background, text, expected);
-        fix = () => replaceCustomProperty(textDeclaration, text, expected);
-      } else if (isDesignToken(base)) {
-        message = messages.noPairedTokenUseBase(
-          background,
-          text,
-          expected,
-          base
-        );
-      } else {
-        message = messages.noPairedToken(background, text, expected);
-      }
-      report({ message, node: textDeclaration, result, ruleName, fix });
+      report({
+        message: messages.notPaired(background, text, expected),
+        node: textDeclaration,
+        result,
+        ruleName,
+        fix: () => replaceCustomProperty(textDeclaration, text, expected),
+      });
       return;
     }
   }

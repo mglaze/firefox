@@ -21,9 +21,7 @@ wget-en-US:
 	@$(MAKE) -C browser/locales $@
 
 ifdef MAKENSISU
-ifndef MOZ_USE_MAKEFILE_INSTALLER_BUILD
 INSTALLER_REPACK_DEPS = browser/installer/windows/nsis-stage.stamp
-endif
 endif
 
 installers-%: $(INSTALLER_REPACK_DEPS)

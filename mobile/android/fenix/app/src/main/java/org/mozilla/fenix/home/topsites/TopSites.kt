@@ -208,6 +208,8 @@ fun TopSites(
             )
 
             if (isExpandToggleEnabled && (hasHiddenShortcuts || hasHiddenAddShortcut)) {
+                Spacer(modifier = Modifier.height(FirefoxTheme.layout.space.static100))
+
                 TopSitesExpandToggle(
                     isExpanded = isExpanded,
                     contentColor = topSiteColors.titleTextColor,
@@ -242,7 +244,7 @@ private fun TopSitesExpandToggle(
             tint = LocalContentColor.current,
         )
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
 
         Text(
             text =

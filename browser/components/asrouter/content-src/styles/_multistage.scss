@@ -862,7 +862,7 @@ html {
       @media (not (prefers-contrast)) and (-moz-pref('browser.privateWindowRedesign.enabled')) {
         &.PRIVATE_WINDOW_BASICS_SCREEN {
           // Reduced backdrop opacity
-          background-color: rgba(0, 0, 0, 40%);
+          background-color: rgba(0, 0, 0, 20%);
 
           // Private window redesign gradient border
           &.zap-border {

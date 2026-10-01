@@ -7,6 +7,7 @@
 
 #include <ostream>
 
+#include "fmt/ostream.h"
 #include "mozilla/ComputedStyle.h"
 #include "mozilla/EnumSet.h"
 #include "mozilla/intl/BidiEmbeddingLevel.h"
@@ -2403,5 +2404,16 @@ inline mozilla::UsedClear nsStyleDisplay::UsedClear(
   MOZ_ASSERT_UNREACHABLE("all cases are handled above!");
   return mozilla::UsedClear::None;
 }
+
+template <>
+struct fmt::formatter<mozilla::WritingMode> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<mozilla::LogicalPoint> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<mozilla::LogicalSize> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<mozilla::LogicalMargin> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<mozilla::LogicalRect> : fmt::ostream_formatter {};
 
 #endif  // WritingModes_h_

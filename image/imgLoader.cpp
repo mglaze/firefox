@@ -80,7 +80,6 @@ static bool ShouldEnableWAICT(mozilla::dom::Document* aDoc);
 // until this point, we have an evil hack:
 #include "nsIDocShell.h"
 #include "nsIHttpChannelInternal.h"
-#include "nsILoadGroupChild.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1007,9 +1006,8 @@ static nsresult NewImageChannel(
   // least one base load group for scheduling/caching purposes.
 
   nsCOMPtr<nsILoadGroup> loadGroup = do_CreateInstance(NS_LOADGROUP_CONTRACTID);
-  nsCOMPtr<nsILoadGroupChild> childLoadGroup = do_QueryInterface(loadGroup);
-  if (childLoadGroup) {
-    childLoadGroup->SetParentLoadGroup(aLoadGroup);
+  if (loadGroup) {
+    loadGroup->SetParentLoadGroup(aLoadGroup);
   }
   (*aResult)->SetLoadGroup(loadGroup);
 

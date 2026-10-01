@@ -3229,8 +3229,6 @@ add_task(function test_randomizeOrganicContentEvent() {
     corpus_item_id: `item-${id}`,
     topic: "a",
     is_sponsored: false,
-    section_id: "section",
-    section_position: 3,
     variant_id: 0,
     source_section_id: "src-section",
   });
@@ -3311,6 +3309,55 @@ add_task(function test_randomizeOrganicContentEvent_tracks_layout_name() {
     result.source_section_id,
     "swapped-source",
     "source_section_id tracks the swapped section"
+  );
+
+  sandbox.restore();
+});
+
+add_task(async function test_randomizeOrganicContentEvent_section_position() {
+  info(
+    "randomizeOrganicContentEvent should only swap in items from rendered " +
+      "sections and report the rendered position of the swapped section"
+  );
+  let sandbox = sinon.createSandbox();
+  let instance = new TelemetryFeed();
+  const PORT_ID = "port123";
+  const session = instance.addSession(PORT_ID);
+
+  await instance.onAction({
+    type: actionTypes.CARD_SECTIONS_ORDER,
+    meta: { fromTarget: PORT_ID },
+    data: { sections: ["orig-section", "swapped-section"] },
+  });
+
+  const item = {
+    corpus_item_id: "orig",
+    section: "orig-section",
+    section_position: 0,
+  };
+  sandbox.stub(instance, "getRecommendationCount").returns(10);
+  sandbox
+    .stub(instance, "getAllRecommendations")
+    .returns([
+      { corpus_item_id: "hidden", section: "hidden" },
+      { corpus_item_id: "unsectioned" },
+      { corpus_item_id: "swapped", section: "swapped-section" },
+    ]);
+  instance._privateRandomContentTelemetryProbablityValues = { epsilon: 30 };
+  sandbox.stub(NewTabContentPing, "decideWithProbability").returns(false);
+  sandbox.stub(NewTabContentPing, "secureRandIntInRange").returns(0);
+
+  const result = instance.randomizeOrganicContentEvent(item, session);
+
+  Assert.equal(
+    result.corpus_item_id,
+    "swapped",
+    "Only items from rendered sections are candidates"
+  );
+  Assert.equal(
+    result.section_position,
+    1,
+    "section_position is the swapped section's rendered position"
   );
 
   sandbox.restore();
@@ -4058,8 +4105,6 @@ add_task(async function test_recordEnabledWidgets_partial() {
           "widgets.system.focusTimer.enabled": true,
           "widgets.weather.enabled": true,
           "widgets.system.weather.enabled": true,
-          "widgets.sportsWidget.enabled": false,
-          "widgets.system.sportsWidget.enabled": true,
         },
       },
     }),
@@ -4186,7 +4231,6 @@ add_task(async function test_recordEnabledWidgets_none_enabled() {
           "widgets.lists.enabled": false,
           "widgets.focusTimer.enabled": false,
           "widgets.weather.enabled": false,
-          "widgets.sportsWidget.enabled": false,
         },
       },
     }),

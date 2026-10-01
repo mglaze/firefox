@@ -47,6 +47,7 @@
 #include "FrameProperties.h"
 #include "LayoutConstants.h"
 #include "Visibility.h"
+#include "fmt/ostream.h"
 #include "mozilla/AspectRatio.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Baseline.h"
@@ -366,6 +367,9 @@ class nsReflowStatus final {
 
 // Convert nsReflowStatus to a human-readable string.
 std::ostream& operator<<(std::ostream& aStream, const nsReflowStatus& aStatus);
+
+template <>
+struct fmt::formatter<nsReflowStatus> : fmt::ostream_formatter {};
 
 namespace mozilla {
 

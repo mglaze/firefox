@@ -108,8 +108,8 @@ $(current_tier_targets): %/$(CURRENT_TIER):
 $(addsuffix /Makefile,$(CURRENT_DIRS)) $(addsuffix /backend.mk,$(CURRENT_DIRS)):
 
 ifeq ($(CURRENT_TIER),export)
-# At least build/export requires config/export for buildid, but who knows what
-# else, so keep this global dependency to make config/export first for now.
+# config/export builds the STL and system wrappers. Keep it first until the
+# export consumers are audited.
 $(addsuffix /$(CURRENT_TIER),$(filter-out config,$(CURRENT_DIRS))): config/$(CURRENT_TIER)
 
 # The export tier requires nsinstall, which is built from config. So every

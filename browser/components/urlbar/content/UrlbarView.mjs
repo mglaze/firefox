@@ -26,6 +26,7 @@ const RESULT_MENU_COMMANDS = {
   DISMISS: "dismiss",
   HELP: "help",
   MANAGE: "manage",
+  TOGGLE_KEYBOARD_ACCESSIBLE: "toggle-keyboard-accessible",
 };
 
 // The entry point the container menu items report to telemetry.
@@ -4188,6 +4189,20 @@ export class UrlbarView {
   }
 
   /**
+   * Applies the current value of `resultMenu.keyboardAccessible` to the menu
+   * buttons of the rows that are already built, which would otherwise keep the
+   * attribute they got when they were created.
+   */
+  #updateMenuButtonKeyboardAccessibility() {
+    let inaccessible = !UrlbarPrefs.get("resultMenu.keyboardAccessible");
+    for (let button of this.#rows.querySelectorAll(
+      ".urlbarView-button-result-menu"
+    )) {
+      button.toggleAttribute("keyboard-inaccessible", inaccessible);
+    }
+  }
+
+  /**
    * @param {UrlbarResult} result
    *   The result to check.
    * @returns {boolean}
@@ -4209,17 +4224,30 @@ export class UrlbarView {
    *   Everything the result's menu shows, null if it has nothing to show. The
    *   three-dot button and a right-click both open this menu, so it combines
    *   the result's own commands with the ones that open it in a new tab or
-   *   window.
+   *   window, and closes with the checkbox that skips the menu button when
+   *   tabbing through the results.
    */
   #getMenuCommands(result) {
     let commands = this.#getResultMenuCommands(result);
-    if (!this.#canOpenInNewTarget(result)) {
-      return commands;
+    if (this.#canOpenInNewTarget(result)) {
+      let openInCommands = this.#openInCommands;
+      commands = commands
+        ? [...openInCommands, { name: "separator" }, ...commands]
+        : openInCommands;
     }
-    let openInCommands = this.#openInCommands;
-    return commands
-      ? [...openInCommands, { name: "separator" }, ...commands]
-      : openInCommands;
+    if (!commands) {
+      return null;
+    }
+    return [
+      ...commands,
+      { name: "separator" },
+      {
+        name: RESULT_MENU_COMMANDS.TOGGLE_KEYBOARD_ACCESSIBLE,
+        type: "checkbox",
+        checked: !UrlbarPrefs.get("resultMenu.keyboardAccessible"),
+        l10n: { id: "urlbar-view-context-menu-skip-menu-with-tab" },
+      },
+    ];
   }
 
   /**
@@ -4313,6 +4341,10 @@ export class UrlbarView {
         menuitem.appendChild(submenu);
       } else {
         this.#l10nCache.setElementL10n(menuitem, data.l10n);
+      }
+      if (data.type == "checkbox") {
+        menuitem.type = "checkbox";
+        menuitem.checked = data.checked;
       }
       panel.appendChild(menuitem);
     }
@@ -4669,6 +4701,14 @@ export class UrlbarView {
         menuitem.dataset.usercontextid
       )
     ) {
+      return;
+    }
+    if (
+      menuitem.dataset.command ==
+      RESULT_MENU_COMMANDS.TOGGLE_KEYBOARD_ACCESSIBLE
+    ) {
+      UrlbarPrefs.toggleResultMenuKeyboardAccessible();
+      this.#updateMenuButtonKeyboardAccessibility();
       return;
     }
     let result = this.#resultMenuResult;

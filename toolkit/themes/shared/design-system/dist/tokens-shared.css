@@ -455,6 +455,8 @@
     --panel-separator-padding-block: 4px;
     --panel-separator-padding-inline: 8px;
     --panel-text-color: light-dark(var(--color-black), rgb(251, 251, 254));
+    --panel-text-color-dimmed: var(--panel-text-color);
+    --panel-text-color-dimmed-further: var(--panel-text-color);
     --panel-width: initial;
 
     /** popup **/

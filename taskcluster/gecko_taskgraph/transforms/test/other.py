@@ -364,6 +364,11 @@ def setup_browsertime(config, tasks):
                     "macosx64-geckodriver",
                     "macosx64-aarch64-node",
                 ],
+                "macosx2700.*": [
+                    "browsertime",
+                    "macosx64-geckodriver",
+                    "macosx64-aarch64-node",
+                ],
                 "windows.*aarch64.*": [
                     "browsertime",
                     "win32-geckodriver",
@@ -385,6 +390,7 @@ def setup_browsertime(config, tasks):
                 "macosx1470.*": ["mac64-ffmpeg-7.1"],
                 "macosx1400.*": ["mac64-ffmpeg-7.1"],
                 "macosx1500.*": ["mac64-ffmpeg-7.1"],
+                "macosx2700.*": ["mac64-ffmpeg-7.1"],
                 "windows.*aarch64.*": ["win64-ffmpeg-7.1"],
                 "windows.*-64.*": ["win64-ffmpeg-7.1"],
             },

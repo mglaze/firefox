@@ -24,7 +24,7 @@ add_task(async function () {
   setupTest();
 
   let { DistributionCustomizer } = ChromeUtils.importESModule(
-    "resource:///modules/distribution.sys.mjs"
+    "moz-src:///browser/components/distribution.sys.mjs"
   );
   let distribution = new DistributionCustomizer();
 

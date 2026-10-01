@@ -1671,8 +1671,6 @@ function renderNova(overrides = {}, stateOverrides = {}) {
         "widgets.focusTimer.enabled": false,
         "widgets.system.clocks.enabled": false,
         "widgets.clocks.enabled": false,
-        "widgets.system.sportsWidget.enabled": false,
-        "widgets.sportsWidget.enabled": false,
         ...overrides,
       },
     },
@@ -1758,8 +1756,6 @@ describe("<Base> Nova hides Logo when no sections are enabled", () => {
       "widgets.clocks.enabled": true,
       "widgets.system.focusTimer.enabled": true,
       "widgets.focusTimer.enabled": true,
-      "widgets.system.sportsWidget.enabled": true,
-      "widgets.sportsWidget.enabled": true,
     });
     expect(
       container.querySelector(".logo-and-wordmark-wrapper")
@@ -1777,8 +1773,6 @@ describe("<Base> Nova hides Logo when no sections are enabled", () => {
       "widgets.clocks.enabled": true,
       "widgets.system.focusTimer.enabled": true,
       "widgets.focusTimer.enabled": true,
-      "widgets.system.sportsWidget.enabled": true,
-      "widgets.sportsWidget.enabled": true,
     });
     expect(
       container.querySelector(".container.nova-enabled.logo-in-content")

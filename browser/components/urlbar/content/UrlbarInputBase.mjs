@@ -1297,6 +1297,13 @@ ${
     ) {
       return null;
     }
+    if (
+      !result &&
+      this._resultForCurrentValue?.type == UrlbarShared.RESULT_TYPE.URL &&
+      UrlbarShared.navigationInSearchModeEnabled(this.#sapName)
+    ) {
+      return null;
+    }
     return this.controller.engineStore.getEngineByName(
       this.searchMode.engineName
     );

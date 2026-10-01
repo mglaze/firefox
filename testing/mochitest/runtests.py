@@ -85,6 +85,7 @@ from mozprofile.cli import KeyValueParseError, parse_key_value, parse_preference
 from mozprofile.permissions import ServerLocations
 from mozrunner.utils import get_stack_fixer_function, test_environment
 from mozscreenshot import dump_screen
+from moztest.assertions import AssertionFailureParser
 from moztest.tsan import TSANErrorParser
 
 HAVE_PSUTIL = False
@@ -3021,7 +3022,7 @@ toolbar#nav-bar {
             # Enable Marionette and allow system access to execute the mochitest
             # init script in the chrome scope of the application
             args.append("-marionette")
-            args.append("-remote-allow-system-access")
+            env["MOZ_REMOTE_ALLOW_SYSTEM_ACCESS"] = "1"
 
             # TODO: mozrunner should use -foreground at least for mac
             # https://bugzilla.mozilla.org/show_bug.cgi?id=916512
@@ -3051,6 +3052,8 @@ toolbar#nav-bar {
             else:
                 tsanErrors = None
 
+            assertionFailures = AssertionFailureParser(self.log)
+
             # create an instance to process the output
             outputHandler = self.OutputHandler(
                 harness=self,
@@ -3061,6 +3064,7 @@ toolbar#nav-bar {
                 shutdownLeaks=shutdownLeaks,
                 lsanLeaks=lsanLeaks,
                 tsanErrors=tsanErrors,
+                assertionFailures=assertionFailures,
                 bisectChunk=bisectChunk,
                 restartAfterFailure=restartAfterFailure,
             )
@@ -4444,6 +4448,7 @@ toolbar#nav-bar {
             shutdownLeaks=None,
             lsanLeaks=None,
             tsanErrors=None,
+            assertionFailures=None,
             bisectChunk=None,
             restartAfterFailure=None,
         ):
@@ -4459,6 +4464,7 @@ toolbar#nav-bar {
             self.shutdownLeaks = shutdownLeaks
             self.lsanLeaks = lsanLeaks
             self.tsanErrors = tsanErrors
+            self.assertionFailures = assertionFailures
             self.bisectChunk = bisectChunk
             self.restartAfterFailure = restartAfterFailure
             self.browserProcessId = None
@@ -4495,6 +4501,7 @@ toolbar#nav-bar {
                 self.trackShutdownLeaks,
                 self.trackLSANLeaks,
                 self.trackTSanErrors,
+                self.trackAssertionFailures,
                 self.count_structured,
             ]
             if self.bisectChunk or self.restartAfterFailure:
@@ -4538,6 +4545,9 @@ toolbar#nav-bar {
 
             if self.tsanErrors:
                 self.tsanErrors.flush()
+
+            if self.assertionFailures:
+                self.assertionFailures.flush()
 
         # output message handlers:
         # these take a message and return a message
@@ -4662,6 +4672,16 @@ toolbar#nav-bar {
                 else:
                     scope = self.harness.lastTestSeen
                 self.tsanErrors.log(line, pid=pid, scope=scope)
+            return message
+
+        def trackAssertionFailures(self, message):
+            if self.assertionFailures and message["action"] == "process_output":
+                test = self.harness.lastTestSeen
+                if test.endswith(" (finished)"):
+                    test = test[: -len(" (finished)")]
+                self.assertionFailures.log(
+                    message["data"], pid=message.get("process"), test=test
+                )
             return message
 
         def trackShutdownLeaks(self, message):

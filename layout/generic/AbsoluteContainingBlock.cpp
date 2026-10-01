@@ -1751,8 +1751,8 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
   if (nsBlockFrame::gNoisyReflow) {
     nsIFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
     fmt::println("abspos {}: begin reflow: availSize={}, orig cbRect={}",
-                 aKidFrame->ListTag(), ToString(aReflowInput.AvailableSize()),
-                 ToString(aContainingBlockRects.mLocal));
+                 aKidFrame->ListTag(), aReflowInput.AvailableSize(),
+                 aContainingBlockRects.mLocal);
   }
   AutoNoisyIndenter indent(nsBlockFrame::gNoisy);
 #endif  // DEBUG
@@ -2385,8 +2385,8 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
 #ifdef DEBUG
   if (nsBlockFrame::gNoisyReflow) {
     nsIFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent - 1);
-    fmt::println("abspos {}: rect {}", aKidFrame->ListTag().get(),
-                 ToString(aKidFrame->GetRect()));
+    fmt::println("abspos {}: rect {}", aKidFrame->ListTag(),
+                 aKidFrame->GetRect());
   }
 #endif
   // If author asked for `position-visibility: no-overflow` and we overflow

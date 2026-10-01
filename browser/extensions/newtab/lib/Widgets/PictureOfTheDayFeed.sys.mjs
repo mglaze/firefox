@@ -103,8 +103,7 @@ export class PictureOfTheDayFeed {
   }
 
   // Resolve the Merino endpoint, guarding it against the shared endpoint
-  // allowlist so a mis-set pref can't point the fetch at an arbitrary host
-  // (mirrors SportsFeed).
+  // allowlist so a mis-set pref can't point the fetch at an arbitrary host.
   getEndpoint() {
     const { values } = this.store.getState().Prefs;
     const endpoint = values[PREF_ENDPOINT];

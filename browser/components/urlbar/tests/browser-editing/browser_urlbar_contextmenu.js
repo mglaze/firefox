@@ -215,9 +215,13 @@ add_task(async function menu_button_on_openable_rows() {
   });
   Assert.deepEqual(
     await promiseMenuDescription(),
-    ["tab", "container-tab", "window", "private-window"].map(openIn => ({
-      openIn,
-    })),
+    [
+      ...["tab", "container-tab", "window", "private-window"].map(openIn => ({
+        openIn,
+      })),
+      "separator",
+      { command: "toggle-keyboard-accessible" },
+    ],
     "The bookmark has no commands of its own, so its menu only opens it"
   );
   gURLBar.view.resultMenu.hide(undefined, { force: true });

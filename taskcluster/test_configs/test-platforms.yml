@@ -420,6 +420,11 @@ macosx1500-aarch64-nightlyasrelease/opt:
     test-sets:
         - browsertime
 
+macosx2700-aarch64-shippable/opt:
+    build-platform: macosx64-shippable/opt
+    test-sets:
+        - macosx2700-aarch64-perftests
+
 macosx1470-64-shippable/opt:
     build-platform: macosx64-shippable/opt
     test-sets:

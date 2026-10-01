@@ -72,13 +72,15 @@ Disk: SSD 251 GB (251,000,193,024 bytes)
 
 #### Apple Silicon (M4)
 
-Apple Silicon Mac Minis running macOS 15. They also host the Android arm64 emulator tests.
+Apple Silicon Mac Minis running macOS 15. They also host the Android arm64 emulator tests. A small number of the same machines run macOS 27 and are dedicated to Safari testing.
 
 * **Worker pools, and their platforms**:
   * `releng-hardware/gecko-t-osx-1500-m4`
     * `test-android-em-14-arm64-shippable/opt`
     * `test-macosx1500-aarch64-nightlyasrelease/opt`
     * `test-macosx1500-aarch64-shippable/opt`
+  * `releng-hardware/gecko-t-osx-2700-m4`
+    * `test-macosx2700-aarch64-shippable/opt`
 
 ```text
 Model Name: Mac mini

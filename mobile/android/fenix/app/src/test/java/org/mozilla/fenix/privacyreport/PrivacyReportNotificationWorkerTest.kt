@@ -36,7 +36,6 @@ import mozilla.components.support.test.robolectric.testContext
 import mozilla.components.support.utils.FakeDateTimeProvider
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -136,20 +135,6 @@ class PrivacyReportNotificationWorkerTest {
                 }
             )
             .build()
-
-    @Test
-    fun `GIVEN onboarding was never completed WHEN scheduling THEN no work is enqueued`() = runTest {
-        settings.onboardingCompletedTimestamp = -1L
-
-        schedule(testContext, settings)
-
-        val workExists =
-            WorkManager.getInstance(testContext)
-                .getWorkInfosForUniqueWork(PRIVACY_REPORT_NOTIFICATION_WORK_NAME)
-                .await()
-                .isNotEmpty()
-        assertFalse(workExists)
-    }
 
     @Test
     fun `GIVEN onboarding was completed WHEN scheduling THEN work is enqueued`() = runTest {

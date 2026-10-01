@@ -108,12 +108,6 @@
  */
 
 /**
- * @typedef {Window|ClosedTabsOptions} ClosedTabsScope
- *   The windows to include closed tabs from: a `ClosedTabsOptions` object, or
- *   a window as shorthand for `{ sourceWindow: window }`.
- */
-
-/**
  * @typedef {object} ClosedDataSourceOptions
  *   Identifies the window a closed tab or tab group was closed in.
  * @property {Window} [sourceWindow]
@@ -1277,7 +1271,7 @@ class _SessionStore {
     this.#saveStateDelayed(win);
 
     // Handle any updates sent by the child after the tab was closed. This
-    // might be the final update as sent by the "unload" handler but also
+    // might be the final update sent as the child tears down but also
     // any async update message that was sent before the child unloaded.
     let closedTab = this.#closingTabMap.get(permanentKey);
     if (closedTab) {
@@ -3084,8 +3078,8 @@ class _SessionStore {
       this.#saveClosedTabData(winData, closedTabs, tabData);
     }
 
-    // Remember the closed tab to properly handle any last updates included in
-    // the final "update" message sent by the frame script's unload handler.
+    // Remember the closed tab to properly handle any last updates that arrive
+    // before "browser-shutdown-tabstate-updated".
     this.#closingTabMap.set(permanentKey, {
       winData,
       closedTabs,
@@ -3142,7 +3136,7 @@ class _SessionStore {
       // Discard was likely called before state can be cached.  Update
       // the persistent tab state cache with browser information so a
       // restore will be successful.  This information is necessary for
-      // restoreTabContent in ContentRestore.sys.mjs to work properly.
+      // #restoreTabEntry to work properly.
       lazy.TabStateCache.update(browser.permanentKey, {
         userTypedValue,
         userTypedClear: 1,
@@ -3864,7 +3858,7 @@ class _SessionStore {
     let newTab = aWindow.gBrowser.addTrustedTab(null, tabOptions);
 
     // Start the throbber to pretend we're doing something while actually
-    // waiting for data from the frame script. This throbber is disabled
+    // waiting for the flush below. This throbber is disabled
     // if the URI is a local about: URI.
     let uriObj = aTab.linkedBrowser.currentURI;
     if (!uriObj || (uriObj && !uriObj.schemeIs("about"))) {
@@ -4033,7 +4027,7 @@ class _SessionStore {
   }
 
   /**
-   * @param {ClosedTabsScope} [aOptions]
+   * @param {ClosedTabsOptions} [aOptions]
    * @returns {ClosedTabsOptions}
    *   The options with every property filled in.
    */
@@ -4044,9 +4038,7 @@ class _SessionStore {
         closedTabsFromClosedWindows: this.#closedTabsFromClosedWindowsEnabled,
         sourceWindow: null,
       },
-      aOptions instanceof Ci.nsIDOMWindow
-        ? { sourceWindow: aOptions }
-        : aOptions
+      aOptions
     );
     if (!sourceOptions.sourceWindow) {
       sourceOptions.sourceWindow = this.#getTopWindow(sourceOptions.private);
@@ -4070,9 +4062,8 @@ class _SessionStore {
   /**
    * Get the number of closed tabs associated with all matching windows
    *
-   * @param {ClosedTabsScope} [aOptions]
-   *   A window, standing for `{ sourceWindow }`, or options selecting the
-   *   windows to count closed tabs from.
+   * @param {ClosedTabsOptions} [aOptions]
+   *   Options selecting the windows to count closed tabs from.
    */
   getClosedTabCount(aOptions) {
     const sourceOptions = this.#prepareClosedTabOptions(aOptions);
@@ -4125,9 +4116,8 @@ class _SessionStore {
   /**
    * Get the closed tab data associated with all matching windows
    *
-   * @param {ClosedTabsScope} [aOptions]
-   *   A window, standing for `{ sourceWindow }`, or options selecting the
-   *   windows to include closed tabs from.
+   * @param {ClosedTabsOptions} [aOptions]
+   *   Options selecting the windows to include closed tabs from.
    */
   getClosedTabData(aOptions) {
     const sourceOptions = this.#prepareClosedTabOptions(aOptions);
@@ -4171,9 +4161,8 @@ class _SessionStore {
   /**
    * Get the closed tab group data associated with all matching windows
    *
-   * @param {ClosedTabsScope} [aOptions]
-   *   A window, standing for `{ sourceWindow }`, or options selecting the
-   *   windows to include closed tab groups from.
+   * @param {ClosedTabsOptions} [aOptions]
+   *   Options selecting the windows to include closed tab groups from.
    * @returns {ClosedTabGroupStateData[]}
    */
   getClosedTabGroups(aOptions) {
@@ -6633,7 +6622,7 @@ class _SessionStore {
     }
 
     if (isBrowserInserted) {
-      // Start a new epoch to discard all frame script messages relating to a
+      // Start a new epoch to discard all tab state updates relating to a
       // previous epoch. All async messages that are still on their way to chrome
       // will be ignored and don't override any tab data set when restoring.
       let epoch = this.#startNextEpoch(browser.permanentKey);
@@ -8310,7 +8299,7 @@ class _SessionStore {
   /**
    * Resets the epoch for a given <browser>. We need to this every time we
    * receive a hint that a new docShell has been loaded into the browser as
-   * the frame script starts out with epoch=0.
+   * its session store listeners start out with epoch=0.
    *
    * @param {object} permanentKey
    *        The permanent key of the browser.
@@ -8432,8 +8421,7 @@ class _SessionStore {
         return callbacks.onHistoryReload();
       },
 
-      // TODO(kashav): ContentRestore.sys.mjs handles OnHistoryNewEntry
-      // separately, so we should eventually support that here as well.
+      // TODO(bug 2075170): Handle OnHistoryNewEntry as well.
       OnHistoryNewEntry() {},
       OnHistoryGotoIndex() {},
       OnHistoryPurge() {},
@@ -8469,8 +8457,7 @@ class _SessionStore {
   }
 
   /**
-   * This mirrors ContentRestore.restoreHistory() for parent process session
-   * history restores.
+   * Restores the session history of a browser from the parent process.
    *
    * @param {MozBrowser} browser
    *        The browser to restore the history for.
@@ -8573,8 +8560,8 @@ class _SessionStore {
   }
 
   /**
-   * This mirrors ContentRestore.restoreTabContent() for parent process session
-   * history restores.
+   * Restores the content of a browser from the parent process, after its
+   * session history has been restored.
    *
    * @param {MozBrowser} browser
    *        The browser to restore into.

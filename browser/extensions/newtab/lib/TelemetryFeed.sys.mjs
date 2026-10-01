@@ -1301,10 +1301,12 @@ export class TelemetryFeed {
    * Occasionally replaces a content item with another that is in the feed.
    *
    * @param {*} item
+   * @param {object} session The session the event belongs to. When it has
+   *   sectionPositions, only items from rendered sections can be swapped in.
    * @returns Same item, but another item occasionally based on probablility setting.
    * Sponsored items are unchanged
    */
-  randomizeOrganicContentEvent(item) {
+  randomizeOrganicContentEvent(item, session) {
     if (item.is_sponsored) {
       return item; // Don't alter spocs
     }
@@ -1337,7 +1339,11 @@ export class TelemetryFeed {
     if (lazy.NewTabContentPing.decideWithProbability(p)) {
       return item;
     }
-    const allRecs = this.getAllRecommendations(); // Number of recommendations has changed
+    const sectionPositions = session?.sectionPositions;
+    let allRecs = this.getAllRecommendations(); // Number of recommendations has changed
+    if (sectionPositions) {
+      allRecs = allRecs.filter(rec => sectionPositions.has(rec.section));
+    }
     if (!allRecs.length) {
       return item;
     }
@@ -1363,7 +1369,7 @@ export class TelemetryFeed {
       randomItem.section
     ) {
       resultItem.section = randomItem.section;
-      resultItem.section_position = randomItem.section_position;
+      resultItem.section_position = sectionPositions?.get(randomItem.section);
       resultItem.layout_name = this.getAllSections().find(
         section => section.sectionKey === randomItem.section
       )?.layout?.name;
@@ -1466,7 +1472,7 @@ export class TelemetryFeed {
           }
           this.recordOrQueueEvent(
             "click",
-            this.randomizeOrganicContentEvent(gleanData),
+            this.randomizeOrganicContentEvent(gleanData, session),
             session.session_id,
             () => {
               Glean.pocket.click.record({
@@ -1887,6 +1893,15 @@ export class TelemetryFeed {
       case at.TOPIC_SELECTION_USER_SAVE:
         this.handleTopicSelectionUserEvent(action);
         break;
+      case at.CARD_SECTIONS_ORDER: {
+        const session = this.sessions.get(au.getPortIdOfSender(action));
+        if (session) {
+          session.sectionPositions = new Map(
+            action.data.sections.map((sectionKey, i) => [sectionKey, i])
+          );
+        }
+        break;
+      }
       case at.BLOCK_SECTION:
       // Intentional fall-through
       case at.CARD_SECTION_IMPRESSION:

@@ -631,6 +631,18 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
   - ✅
   - ❌
   - ❌
+:::
+
+
+:::{list-table} **{ref}`test-macosx2700-aarch64-shippable/opt <hardware-mac-mini-m4>`**
+:widths: 30 15 15 15 15
+:header-rows: 1
+
+* - **Test Name**
+  - mozilla-central
+  - autoland
+  - mozilla-release
+  - mozilla-beta
 * - **browsertime-benchmark-safari-jetstream3**
   - ❌
   - ❌
@@ -980,6 +992,18 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
   - ✅
   - ❌
   - ❌
+:::
+
+
+:::{list-table} **{ref}`test-macosx2700-aarch64-shippable/opt <hardware-mac-mini-m4>`**
+:widths: 30 15 15 15 15
+:header-rows: 1
+
+* - **Test Name**
+  - mozilla-central
+  - autoland
+  - mozilla-release
+  - mozilla-beta
 * - **browsertime-benchmark-safari-jetstream3**
   - ❌
   - ❌
@@ -1774,6 +1798,18 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
   - ❌
   - ❌
   - ❌
+:::
+
+
+:::{list-table} **{ref}`test-macosx2700-aarch64-shippable/opt <hardware-mac-mini-m4>`**
+:widths: 30 15 15 15 15
+:header-rows: 1
+
+* - **Test Name**
+  - mozilla-central
+  - autoland
+  - mozilla-release
+  - mozilla-beta
 * - **browsertime-benchmark-safari-motionmark-1-3**
   - ❌
   - ❌
@@ -2109,6 +2145,18 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
   - ❌
   - ❌
   - ❌
+:::
+
+
+:::{list-table} **{ref}`test-macosx2700-aarch64-shippable/opt <hardware-mac-mini-m4>`**
+:widths: 30 15 15 15 15
+:header-rows: 1
+
+* - **Test Name**
+  - mozilla-central
+  - autoland
+  - mozilla-release
+  - mozilla-beta
 * - **browsertime-benchmark-safari-motionmark-1-3**
   - ❌
   - ❌
@@ -2458,6 +2506,18 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
   - ❌
   - ❌
   - ❌
+:::
+
+
+:::{list-table} **{ref}`test-macosx2700-aarch64-shippable/opt <hardware-mac-mini-m4>`**
+:widths: 30 15 15 15 15
+:header-rows: 1
+
+* - **Test Name**
+  - mozilla-central
+  - autoland
+  - mozilla-release
+  - mozilla-beta
 * - **browsertime-benchmark-safari-motionmark-htmlsuite-1-3**
   - ❌
   - ❌
@@ -2793,6 +2853,18 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
   - ❌
   - ❌
   - ❌
+:::
+
+
+:::{list-table} **{ref}`test-macosx2700-aarch64-shippable/opt <hardware-mac-mini-m4>`**
+:widths: 30 15 15 15 15
+:header-rows: 1
+
+* - **Test Name**
+  - mozilla-central
+  - autoland
+  - mozilla-release
+  - mozilla-beta
 * - **browsertime-benchmark-safari-motionmark-htmlsuite-1-3**
   - ❌
   - ❌
@@ -2898,12 +2970,12 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
 * **page timeout**: 600000
 * **preferences**: media.autoplay.default=0 media.autoplay.blocking_policy=0 media.allowed-to-play.enabled=true media.block-autoplay-until-in-foreground=false
 * **repository**: https://github.com/mozilla/Speedometer
-* **repository revision**: 89435e5dfb97cf793516449370f14b2176b4aed7
+* **repository revision**: 11aa6278897ad5fe33c28df9099604dc07a90352
 * **subtest lower is better**: true
 * **subtest unit**: ms
 * **support class**: speedometer3.py
 * **test script**: speedometer3.js
-* **test url**: <http://\<host\>:\<port\>/index.html?raptor&tags=experimental>
+* **test url**: <http://\<host\>:\<port\>/index.html?raptor&tags=sp4>
 * **type**: benchmark
 * **unit**: score
 * **Test Task**:
@@ -3614,6 +3686,18 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
   - ❌
   - ❌
   - ❌
+:::
+
+
+:::{list-table} **{ref}`test-macosx2700-aarch64-shippable/opt <hardware-mac-mini-m4>`**
+:widths: 30 15 15 15 15
+:header-rows: 1
+
+* - **Test Name**
+  - mozilla-central
+  - autoland
+  - mozilla-release
+  - mozilla-beta
 * - **browsertime-benchmark-safari-speedometer2**
   - ❌
   - ❌
@@ -4025,6 +4109,18 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
   - ❌
   - ❌
   - ❌
+:::
+
+
+:::{list-table} **{ref}`test-macosx2700-aarch64-shippable/opt <hardware-mac-mini-m4>`**
+:widths: 30 15 15 15 15
+:header-rows: 1
+
+* - **Test Name**
+  - mozilla-central
+  - autoland
+  - mozilla-release
+  - mozilla-beta
 * - **browsertime-benchmark-safari-speedometer2**
   - ❌
   - ❌
@@ -4663,6 +4759,18 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
   - ✅
   - ❌
   - ❌
+:::
+
+
+:::{list-table} **{ref}`test-macosx2700-aarch64-shippable/opt <hardware-mac-mini-m4>`**
+:widths: 30 15 15 15 15
+:header-rows: 1
+
+* - **Test Name**
+  - mozilla-central
+  - autoland
+  - mozilla-release
+  - mozilla-beta
 * - **browsertime-benchmark-safari-speedometer3**
   - ❌
   - ❌
@@ -5431,6 +5539,18 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
   - ✅
   - ❌
   - ❌
+:::
+
+
+:::{list-table} **{ref}`test-macosx2700-aarch64-shippable/opt <hardware-mac-mini-m4>`**
+:widths: 30 15 15 15 15
+:header-rows: 1
+
+* - **Test Name**
+  - mozilla-central
+  - autoland
+  - mozilla-release
+  - mozilla-beta
 * - **browsertime-benchmark-safari-speedometer3**
   - ❌
   - ❌

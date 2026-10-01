@@ -30,16 +30,12 @@ counterpart is meant to combine with whatever the surface inherits, so it makes
 no claim to report.
 
 **A background and text color that are not counterparts.** Where the block sets
-both halves, the rule reports:
-
-- Two paired tokens that are not each other's counterpart, whether they come
-  from different components (`--sidebar-background-color` with
-  `--panel-text-color`) or from different variants of one component
-  (`--button-background-color-menu` with `--button-text-color`).
-- Two tokens of one component whose variants differ where the counterpart does
-  not exist as a token at all, e.g. `--urlbar-box-background-color-focus` with
-  `--urlbar-box-text-color-hover`. Use the component's base text color where it
-  has one, and otherwise file a bug for the missing token.
+both halves, the rule reports two tokens that are not each other's counterpart,
+whether they come from different components (`--sidebar-background-color` with
+`--panel-text-color`) or from different variants of one component
+(`--button-background-color-menu` with `--button-text-color`). A component with
+any text color token has one for every background variant, which the design
+system's tests enforce, so the message can always name the counterpart.
 
 **A state variant that inherits the wrong text color.** A block selected by a
 state that repaints the background and sets no `color` takes its text color
@@ -62,9 +58,9 @@ can resolve to entirely different values under `forced-colors`:
 
 Tokens without a counterpart make no pairing claim and are left alone. That
 covers most of the global `--background-color-*` and `--text-color-*` tokens,
-which are meant to combine freely, a component variant that deliberately has no
-text color of its own and so falls back to the family's base one, and any value
-that is not a design token. A global token that does have a counterpart is
+which are meant to combine freely, and any value that is not a design token. A
+component that declares a base text color has a counterpart for every
+background variant, which the design system's own tests enforce. A global token that does have a counterpart is
 paired like any other, so `--background-color-list-item-hover` still has to go
 with `--text-color-list-item-hover`.
 

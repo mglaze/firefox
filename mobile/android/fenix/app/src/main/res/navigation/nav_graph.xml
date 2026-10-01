@@ -196,9 +196,6 @@
         app:popUpToInclusive="true"
         app:destination="@+id/unlockPrivateTabsFragment"/>
     <action
-        android:id="@+id/action_global_customReviewPromptDialogFragment"
-        app:destination="@id/customReviewPromptDialogFragment" />
-    <action
         android:id="@+id/action_global_to_installedAddonDetailsFragment"
         app:destination="@id/installedAddonDetailsFragment" />
     <action
@@ -1938,8 +1935,4 @@
             app:argType="string"
             app:nullable="true" />
     </dialog>
-
-    <dialog
-        android:id="@+id/customReviewPromptDialogFragment"
-        android:name="org.mozilla.fenix.reviewprompt.CustomReviewPromptBottomSheetFragment" />
 </navigation>

@@ -48,7 +48,7 @@ add_task(async function test_mozillaonline_distribution_ignored() {
   );
 
   let { DistributionManagement } = ChromeUtils.importESModule(
-    "resource:///modules/distribution.sys.mjs"
+    "moz-src:///browser/components/distribution.sys.mjs"
   );
 
   DistributionManagement.applyCustomizations();

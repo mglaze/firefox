@@ -294,6 +294,10 @@ abstract class BaseBrowserFragment :
     private val findInPageLauncher: () -> Unit
         get() = _findInPageLauncher!!
 
+    @Suppress("VariableNaming") private var _readerMenuController: DefaultReaderModeController? = null
+    protected val readerMenuController: DefaultReaderModeController
+        get() = _readerMenuController!!
+
     protected val readerViewFeature = ViewBoundFeatureWrapper<ReaderViewFeature>()
     protected val thumbnailsFeature = ViewBoundFeatureWrapper<BrowserThumbnails>()
     private val scrollAwareThumbnailFeature = ViewBoundFeatureWrapper<ScrollAwareThumbnailFeature>()
@@ -528,7 +532,7 @@ abstract class BaseBrowserFragment :
                 putExtra(HomeActivity.OPEN_TO_BROWSER, true)
             }
 
-        val readerMenuController =
+        _readerMenuController =
             DefaultReaderModeController(
                 readerViewFeature,
                 binding.readerViewControlsBar,
@@ -2424,6 +2428,7 @@ abstract class BaseBrowserFragment :
         emailMaskBar = null
 
         _findInPageLauncher = null
+        _readerMenuController = null
 
         _bottomToolbarContainerView = null
         _browserToolbar = null

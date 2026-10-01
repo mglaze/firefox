@@ -43,7 +43,7 @@ registerCleanupFunction(function () {
 add_task(async function test_preferences_observer() {
   print("test_preferences_observer()");
   let { DistributionManagement } = ChromeUtils.importESModule(
-    "resource:///modules/distribution.sys.mjs"
+    "moz-src:///browser/components/distribution.sys.mjs"
   );
 
   const observerPromise = new Promise(resolve => {

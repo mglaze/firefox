@@ -26,6 +26,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   Chat: "moz-src:///browser/components/aiwindow/models/Chat.sys.mjs",
   GET_PAGE_CONTENT:
     "moz-src:///browser/components/aiwindow/models/Tools.sys.mjs",
+  MAX_TAB_GROUP_MEMBERS:
+    "moz-src:///browser/components/aiwindow/models/Tools.sys.mjs",
   MODEL_FEATURES: "moz-src:///browser/components/aiwindow/models/Utils.sys.mjs",
   openAIEngine:
     "moz-src:///browser/components/aiwindow/models/openAIEngine.sys.mjs",
@@ -84,11 +86,20 @@ ChromeUtils.defineESModuleGetters(lazy, {
   UI_UPDATE_TYPES:
     "moz-src:///browser/components/aiwindow/ui/modules/ToolUI.sys.mjs",
   UrlbarShared: "chrome://browser/content/urlbar/UrlbarShared.mjs",
+  CONTEXT_MENTION_TYPE:
+    "chrome://browser/content/urlbar/SmartbarMentionUtils.mjs",
+  getContextMentionKey:
+    "chrome://browser/content/urlbar/SmartbarMentionUtils.mjs",
+  parseTabGroupMentionId:
+    "chrome://browser/content/urlbar/SmartbarMentionUtils.mjs",
   SmartWindowTelemetry:
     "moz-src:///browser/components/aiwindow/ui/modules/SmartWindowTelemetry.sys.mjs",
   ResumeActivity:
     "moz-src:///browser/components/aiwindow/ui/modules/ResumeActivity.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
+  isTabGroupMember: "chrome://browser/content/urlbar/SmartbarMentionUtils.mjs",
+  tabManagementService:
+    "moz-src:///browser/components/aiwindow/ui/modules/TabManagementService.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "log", function () {
@@ -100,6 +111,7 @@ ChromeUtils.defineLazyGetter(lazy, "log", function () {
 
 /**
  * @import { SmartbarAction } from "chrome://browser/content/aiwindow/components/input-cta/input-cta.mjs"
+ * @import { TabGroupColor } from "chrome://browser/content/tabbrowser/tabgroup.mjs"
  */
 
 /**
@@ -1946,7 +1958,7 @@ export class AIWindow extends MozLitElement {
       }
       this.submitChatMessage({
         text: value,
-        contextMentions: mergedMentions,
+        contextMentions: this.#withTabGroupMembers(mergedMentions),
         contextPageUrl,
         detectedIntent,
         submitType,
@@ -1989,36 +2001,148 @@ export class AIWindow extends MozLitElement {
 
   /**
    * Merges "+" button chip mentions with inline "@" mentions, deduplicating
-   * by URL, and returns the combined list plus the full set of URLs.
+   * by mention key and returns the combined list as well as the
+   * mentioned URLs.
    *
    * @param {ContextWebsite[]} contextMentions - Chip mentions from the smartbar
    * @returns {{mergedMentions: ContextWebsite[], allUrls: Set<string>, inlineMentions: Array}}
    */
   #calculateCurrentMentions(contextMentions) {
-    const contextUrls = new Set();
+    const seenKeys = new Set();
+    const allUrls = new Set();
     for (const mention of contextMentions) {
+      const key = lazy.getContextMentionKey(mention);
+      if (key) {
+        seenKeys.add(key);
+      }
       if (mention.url) {
-        contextUrls.add(mention.url);
+        allUrls.add(mention.url);
       }
     }
 
     const inlineMentions = this.#getInlineMentions();
     const atMentions = [];
     for (const mention of inlineMentions) {
-      if (mention.id && !contextUrls.has(mention.id)) {
-        atMentions.push({
-          type: mention.type,
-          url: mention.id,
-          label: mention.label,
-          iconSrc: lazy.UrlbarShared.getIconForUrl(mention.id),
-        });
-        contextUrls.add(mention.id);
+      if (!mention.id || seenKeys.has(mention.id)) {
+        continue;
       }
+      seenKeys.add(mention.id);
+
+      const groupId = lazy.parseTabGroupMentionId(mention.id);
+      if (groupId) {
+        atMentions.push({
+          type: lazy.CONTEXT_MENTION_TYPE.TAB_GROUP,
+          groupId,
+          label: mention.label,
+          color: this.#getTabGroupColor(groupId),
+        });
+        continue;
+      }
+
+      atMentions.push({
+        type: mention.type,
+        url: mention.id,
+        label: mention.label,
+        iconSrc: lazy.UrlbarShared.getIconForUrl(mention.id),
+      });
+      allUrls.add(mention.id);
     }
 
     const mergedMentions = [...contextMentions, ...atMentions];
 
-    return { mergedMentions, allUrls: contextUrls, inlineMentions };
+    return { mergedMentions, allUrls, inlineMentions };
+  }
+
+  /**
+   * Expands the mentioned tab groups and records the members as seen.
+   *
+   * @param {ContextWebsite[]} mentions
+   * @returns {ContextWebsite[]} The mentions with members appended.
+   */
+  #withTabGroupMembers(mentions) {
+    const tabGroupMembers = this.#expandTabGroupMentions(mentions);
+    if (tabGroupMembers.length) {
+      this.#conversation?.addSeenUrls(tabGroupMembers.map(({ url }) => url));
+    }
+    return [...mentions, ...tabGroupMembers];
+  }
+
+  /**
+   * @param {ContextWebsite[]} mentions
+   * @returns {ContextWebsite[]} The members of the mentioned tab group.
+   */
+  #expandTabGroupMentions(mentions) {
+    const seen = new Set(mentions.map(lazy.getContextMentionKey));
+    const tabGroupMembers = [];
+    for (const mention of mentions) {
+      if (mention.type != lazy.CONTEXT_MENTION_TYPE.TAB_GROUP) {
+        continue;
+      }
+      const tabsRemaining = lazy.MAX_TAB_GROUP_MEMBERS - tabGroupMembers.length;
+      if (!tabsRemaining) {
+        break;
+      }
+      for (const tabGroupMember of this.#getTabGroupMembers(
+        mention.groupId,
+        tabsRemaining
+      )) {
+        const key = lazy.getContextMentionKey(tabGroupMember);
+        if (!seen.has(key)) {
+          seen.add(key);
+          tabGroupMembers.push(tabGroupMember);
+        }
+      }
+    }
+    return tabGroupMembers;
+  }
+
+  /**
+   * Get tab groups of the current window.
+   *
+   * @param {string} groupId
+   * @returns {MozTabbrowserTabGroup|undefined} The open tab group
+   */
+  #getTabGroup(groupId) {
+    return this.#topChromeWindow.gBrowser.tabGroups.find(
+      group => group.id === groupId
+    );
+  }
+
+  /**
+   * @param {string} groupId
+   * @returns {TabGroupColor|undefined} Color of the open tab group
+   */
+  #getTabGroupColor(groupId) {
+    return this.#getTabGroup(groupId)?.color;
+  }
+
+  /**
+   * @param {string} groupId
+   * @param {number} limit - Max number of members to return
+   * @returns {ContextWebsite[]} The members of the tab group the model may see.
+   */
+  #getTabGroupMembers(groupId, limit) {
+    const group = this.#getTabGroup(groupId);
+    const visibleGroup =
+      group &&
+      lazy.tabManagementService.getTabGroupById({
+        groupId,
+        window: this.#topChromeWindow,
+      });
+    if (!visibleGroup) {
+      return [];
+    }
+    const tabGroupLabels = new Map(
+      group.tabs.map(tab => [tab.linkedBrowser?.currentURI?.spec, tab.label])
+    );
+    return visibleGroup.tabs.slice(0, limit).map(({ url }) => ({
+      type: lazy.CONTEXT_MENTION_TYPE.TAB,
+      url,
+      label: tabGroupLabels.get(url) || url,
+      iconSrc: lazy.UrlbarShared.getIconForUrl(url),
+      groupId: visibleGroup.id,
+      groupLabel: visibleGroup.label,
+    }));
   }
 
   /**
@@ -2086,7 +2210,8 @@ export class AIWindow extends MozLitElement {
       message_seq: this.conversationMessageCount,
       model: this.modelName,
       submit_type: submitType,
-      tabs: contextMentions.length,
+      tabs: contextMentions.filter(member => !lazy.isTabGroupMember(member))
+        .length,
     });
 
     if (this.#conversation) {
@@ -2397,10 +2522,11 @@ export class AIWindow extends MozLitElement {
     const { pageUrl: contextPageUrl, contextWebsites } =
       this.#smartbar.getCurrentContextData();
 
+    const mentions = contextMentionsOverride ?? contextWebsites;
     const submitType = starter ? "starter" : "follow-up";
     this.submitChatMessage({
       text,
-      contextMentions: contextMentionsOverride ?? contextWebsites,
+      contextMentions: this.#withTabGroupMembers(mentions),
       contextPageUrl,
       submitType,
     });

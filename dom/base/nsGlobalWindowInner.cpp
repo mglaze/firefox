@@ -197,7 +197,6 @@
 #include "mozilla/gfx/BasePoint.h"
 #include "mozilla/gfx/BaseRect.h"
 #include "mozilla/gfx/BaseSize.h"
-#include "mozilla/gfx/CanvasShutdownManager.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/gfx/Types.h"
 #include "mozilla/glean/DomMetrics.h"
@@ -1238,12 +1237,6 @@ void nsGlobalWindowInner::FreeInnerObjects() {
     mAudioContexts[i]->OnWindowDestroy();
   }
   mAudioContexts.Clear();
-
-  // Release the resources (e.g. accelerated draw targets) held by this
-  // window's 2D canvases now, rather than whenever they get collected.
-  if (auto* canvasManager = gfx::CanvasShutdownManager::MaybeGet()) {
-    canvasManager->OnWindowDestroy(this);
-  }
 
   for (MediaKeys* mediaKeys : mMediaKeysInstances) {
     mediaKeys->OnInnerWindowDestroy();

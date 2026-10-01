@@ -254,6 +254,11 @@ export const FEATURES = {
   "search-answer-generation": {
     engineId: "smart-openai",
   },
+  // Exa /answers service.
+  // see browser/components/aiwindow/models/search/SearchWorkflow.sys.mjs
+  "search-answers": {
+    engineId: "smart-openai",
+  },
   aitab: {
     engineId: "aitab-engine",
   },

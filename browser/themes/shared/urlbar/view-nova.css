@@ -167,6 +167,7 @@
   &[menu-trigger],
   &[row-selectable]:not([selected]):hover {
     background-color: var(--urlbarview-background-color-hover);
+    color: var(--urlbarview-text-color-hover);
   }
 
   &[selected] {
@@ -538,12 +539,6 @@
       font-size: 0;
     }
   }
-}
-
-/* This should be supported within panel-{item,list} rather than modifying it, to be fixed by
-   https://bugzilla.mozilla.org/show_bug.cgi?id=1826841 */
-.urlbarView-result-menuitem::part(button) {
-  padding-inline-start: 12px;
 }
 
 /* Button with label, e.g. tip button */
@@ -1066,6 +1061,7 @@
   > .urlbarView-row-inner > .urlbarView-favicon {
     padding: calc((var(--urlbarView-top-pick-icon-size) - 24px) / 2);
     background-color: var(--urlbar-box-background-color-focus);
+    color: var(--urlbar-box-text-color-focus);
     border-radius: var(--urlbarView-top-pick-icon-border-radius);
   }
 
@@ -1367,6 +1363,7 @@
 
     .urlbarView-realtime-root:not([selectable]) > &:not([selected]):hover {
       background-color: var(--urlbarview-background-color-hover);
+      color: var(--urlbarview-text-color-hover);
     }
 
     &[selected] {
@@ -1589,6 +1586,7 @@
     padding: 0;
     border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
     background-color: var(--urlbar-box-background-color-focus);
+    color: var(--urlbar-box-text-color-focus);
 
     &[backgroundImageId] {
       background-position: center;

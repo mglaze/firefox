@@ -1151,7 +1151,9 @@ Tester.prototype = {
     );
 
     // Forget closed tab groups in the test window.
-    const closedTabGroups = window.SessionStore.getClosedTabGroups(window);
+    const closedTabGroups = window.SessionStore.getClosedTabGroups({
+      sourceWindow: window,
+    });
     closedTabGroups.forEach(tabGroup =>
       window.SessionStore.forgetClosedTabGroup(window, tabGroup.id)
     );

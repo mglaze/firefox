@@ -255,14 +255,24 @@ export class AIChatMessage extends MozLitElement {
       }
 
       const label = a.textContent || linkHref;
-      const iconSrc = this.#getIconSrc(linkHref);
 
       // Create Website Chip
       const chip = root.ownerDocument.createElement("ai-website-chip");
       chip.type = "in-line";
       chip.label = label;
-      chip.iconSrc = iconSrc;
-      chip.href = linkHref;
+
+      // Messages submitted before the type was serialized carry only a color.
+      const color = params.get("color");
+      const isTabGroup = params.get("type")
+        ? params.get("type") == "tabGroup"
+        : !!color;
+      if (isTabGroup) {
+        chip.isTabGroup = true;
+        chip.tabGroupColor = color ?? "";
+      } else {
+        chip.iconSrc = this.#getIconSrc(linkHref);
+        chip.href = linkHref;
+      }
 
       a.replaceWith(chip);
     }

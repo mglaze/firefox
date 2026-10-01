@@ -332,12 +332,10 @@ class CommonBackend(BuildBackend):
                 mozpath.join(obj.relobjdir, f"{obj.basename}.h")
             ])
             return False
-
         elif isinstance(obj, (Sources, HostSources)):
             if obj.generated_files:
                 self._handle_generated_sources(obj.generated_files)
             return False
-
         elif isinstance(obj, GeneratedFile):
             for f in obj.outputs:
                 if f == "cbindgen-metadata.json":

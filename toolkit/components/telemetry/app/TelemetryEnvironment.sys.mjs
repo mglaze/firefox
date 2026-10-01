@@ -1210,12 +1210,21 @@ EnvironmentCache.prototype = {
     if (AppConstants.platform === "android") {
       return;
     }
+
+    if (!this._sessionWasRestored) {
+      this._log.trace("_updateDefaultBrowser - ignoring early call");
+      return;
+    }
+
     // Make sure to have a settings section.
     this._currentEnvironment.settings = this._currentEnvironment.settings || {};
-    this._currentEnvironment.settings.isDefaultBrowser = this
-      ._sessionWasRestored
-      ? this._isDefaultBrowser()
-      : null;
+
+    this._currentEnvironment.settings.isDefaultBrowser =
+      this._isDefaultBrowser();
+
+    Glean.browser.defaultAtLaunch.set(
+      this._currentEnvironment.settings.isDefaultBrowser
+    );
   },
 
   /**
@@ -1260,9 +1269,6 @@ EnvironmentCache.prototype = {
     );
     Glean.blocklist.enabled.set(
       Services.prefs.getBoolPref(PREF_BLOCKLIST_ENABLED, true)
-    );
-    Glean.browser.defaultAtLaunch.set(
-      this._currentEnvironment.settings.isDefaultBrowser
     );
     // Services.appinfo.launcherProcessState is not available in all build
     // configurations, in which case an exception may be thrown.

@@ -2731,11 +2731,53 @@ void MacroAssembler::moveSimd128(FloatRegister src, FloatRegister dest) {
   }
 }
 
+// Whether Movi materializes |imm| in every 64-bit lane with one movi or mvni.
+static inline bool IsSingleInstructionMovi(uint64_t imm) {
+  bool all0orff = true;
+  for (int i = 0; i < 8; i++) {
+    uint8_t b = imm >> (i * 8);
+    all0orff &= b == 0x00 || b == 0xff;
+  }
+  if (all0orff) {
+    return true;
+  }
+  if ((imm >> 32) != (imm & 0xffffffff)) {
+    return false;
+  }
+  uint32_t imm32 = imm;
+  for (int i = 0; i < 4; i++) {
+    uint32_t byteMask = uint32_t(0xff) << (i * 8);
+    if ((imm32 & ~byteMask) == 0 || (imm32 | byteMask) == 0xffffffff) {
+      return true;
+    }
+  }
+  if ((imm32 & 0xff00ffff) == 0x0000ffff ||
+      (imm32 & 0xffff00ff) == 0x000000ff ||
+      (imm32 & 0xff00ffff) == 0xff000000 ||
+      (imm32 & 0xffff00ff) == 0xffff0000) {
+    return true;
+  }
+  if ((imm32 >> 16) != (imm32 & 0xffff)) {
+    return false;
+  }
+  uint8_t byte1 = imm32;
+  uint8_t byte2 = imm32 >> 8;
+  return byte1 == byte2 || byte1 == 0 || byte2 == 0 || byte1 == 0xff ||
+         byte2 == 0xff;
+}
+
 void MacroAssembler::loadConstantSimd128(const SimdConstant& v,
                                          FloatRegister dest) {
-  // Movi does not yet generate good code for many cases, bug 1664397.
   SimdConstant c = SimdConstant::CreateX2((const int64_t*)v.bytes());
-  Movi(SimdReg(dest), c.asInt64x2()[1], c.asInt64x2()[0]);
+  uint64_t lo = c.asInt64x2()[0];
+  uint64_t hi = c.asInt64x2()[1];
+  if (hi == lo && IsSingleInstructionMovi(lo)) {
+    Movi(SimdReg(dest), hi, lo);
+    return;
+  }
+  // Anything else takes Movi two to ten instructions through a general
+  // register, so load it from the literal pool instead.
+  fImmPool128(SimdReg(dest), reinterpret_cast<const uint8_t*>(v.bytes()));
 }
 
 // Splat
@@ -3759,6 +3801,18 @@ void MacroAssembler::compareInt8x16(Assembler::Condition cond,
   compareSimd128Int(cond, Simd16B(dest), Simd16B(lhs), Simd16B(rhs));
 }
 
+void MacroAssembler::compareInt8x16(Assembler::Condition cond,
+                                    FloatRegister lhs, const SimdConstant& rhs,
+                                    FloatRegister dest) {
+  if (rhs.isZeroBits()) {
+    compareSimd128IntWithZero(cond, Simd16B(dest), Simd16B(lhs));
+    return;
+  }
+  ScratchSimd128Scope scratch(*this);
+  loadConstantSimd128(rhs, scratch);
+  compareInt8x16(cond, lhs, scratch, dest);
+}
+
 void MacroAssembler::compareInt16x8(Assembler::Condition cond,
                                     FloatRegister rhs, FloatRegister lhsDest) {
   compareSimd128Int(cond, Simd8H(lhsDest), Simd8H(lhsDest), Simd8H(rhs));
@@ -3768,6 +3822,18 @@ void MacroAssembler::compareInt16x8(Assembler::Condition cond,
                                     FloatRegister lhs, FloatRegister rhs,
                                     FloatRegister dest) {
   compareSimd128Int(cond, Simd8H(dest), Simd8H(lhs), Simd8H(rhs));
+}
+
+void MacroAssembler::compareInt16x8(Assembler::Condition cond,
+                                    FloatRegister lhs, const SimdConstant& rhs,
+                                    FloatRegister dest) {
+  if (rhs.isZeroBits()) {
+    compareSimd128IntWithZero(cond, Simd8H(dest), Simd8H(lhs));
+    return;
+  }
+  ScratchSimd128Scope scratch(*this);
+  loadConstantSimd128(rhs, scratch);
+  compareInt16x8(cond, lhs, scratch, dest);
 }
 
 void MacroAssembler::compareInt32x4(Assembler::Condition cond,
@@ -3781,6 +3847,18 @@ void MacroAssembler::compareInt32x4(Assembler::Condition cond,
   compareSimd128Int(cond, Simd4S(dest), Simd4S(lhs), Simd4S(rhs));
 }
 
+void MacroAssembler::compareInt32x4(Assembler::Condition cond,
+                                    FloatRegister lhs, const SimdConstant& rhs,
+                                    FloatRegister dest) {
+  if (rhs.isZeroBits()) {
+    compareSimd128IntWithZero(cond, Simd4S(dest), Simd4S(lhs));
+    return;
+  }
+  ScratchSimd128Scope scratch(*this);
+  loadConstantSimd128(rhs, scratch);
+  compareInt32x4(cond, lhs, scratch, dest);
+}
+
 void MacroAssembler::compareInt64x2(Assembler::Condition cond,
                                     FloatRegister rhs, FloatRegister lhsDest) {
   compareSimd128Int(cond, Simd2D(lhsDest), Simd2D(lhsDest), Simd2D(rhs));
@@ -3790,6 +3868,38 @@ void MacroAssembler::compareInt64x2(Assembler::Condition cond,
                                     FloatRegister lhs, FloatRegister rhs,
                                     FloatRegister dest) {
   compareSimd128Int(cond, Simd2D(dest), Simd2D(lhs), Simd2D(rhs));
+}
+
+void MacroAssembler::compareInt64x2(Assembler::Condition cond,
+                                    FloatRegister lhs, const SimdConstant& rhs,
+                                    FloatRegister dest) {
+  if (rhs.isZeroBits()) {
+    compareSimd128IntWithZero(cond, Simd2D(dest), Simd2D(lhs));
+    return;
+  }
+  ScratchSimd128Scope scratch(*this);
+  loadConstantSimd128(rhs, scratch);
+  compareInt64x2(cond, lhs, scratch, dest);
+}
+
+void MacroAssembler::testBitsInt8x16(FloatRegister lhs, FloatRegister rhs,
+                                     FloatRegister dest) {
+  Cmtst(Simd16B(dest), Simd16B(lhs), Simd16B(rhs));
+}
+
+void MacroAssembler::testBitsInt16x8(FloatRegister lhs, FloatRegister rhs,
+                                     FloatRegister dest) {
+  Cmtst(Simd8H(dest), Simd8H(lhs), Simd8H(rhs));
+}
+
+void MacroAssembler::testBitsInt32x4(FloatRegister lhs, FloatRegister rhs,
+                                     FloatRegister dest) {
+  Cmtst(Simd4S(dest), Simd4S(lhs), Simd4S(rhs));
+}
+
+void MacroAssembler::testBitsInt64x2(FloatRegister lhs, FloatRegister rhs,
+                                     FloatRegister dest) {
+  Cmtst(Simd2D(dest), Simd2D(lhs), Simd2D(rhs));
 }
 
 void MacroAssembler::compareFloat32x4(Assembler::Condition cond,
@@ -3804,6 +3914,19 @@ void MacroAssembler::compareFloat32x4(Assembler::Condition cond,
   compareSimd128Float(cond, Simd4S(dest), Simd4S(lhs), Simd4S(rhs));
 }
 
+void MacroAssembler::compareFloat32x4(Assembler::Condition cond,
+                                      FloatRegister lhs,
+                                      const SimdConstant& rhs,
+                                      FloatRegister dest) {
+  if (rhs.isZeroBits()) {
+    compareSimd128FloatWithZero(cond, Simd4S(dest), Simd4S(lhs));
+    return;
+  }
+  ScratchSimd128Scope scratch(*this);
+  loadConstantSimd128(rhs, scratch);
+  compareFloat32x4(cond, lhs, scratch, dest);
+}
+
 void MacroAssembler::compareFloat64x2(Assembler::Condition cond,
                                       FloatRegister rhs,
                                       FloatRegister lhsDest) {
@@ -3814,6 +3937,19 @@ void MacroAssembler::compareFloat64x2(Assembler::Condition cond,
                                       FloatRegister lhs, FloatRegister rhs,
                                       FloatRegister dest) {
   compareSimd128Float(cond, Simd2D(dest), Simd2D(lhs), Simd2D(rhs));
+}
+
+void MacroAssembler::compareFloat64x2(Assembler::Condition cond,
+                                      FloatRegister lhs,
+                                      const SimdConstant& rhs,
+                                      FloatRegister dest) {
+  if (rhs.isZeroBits()) {
+    compareSimd128FloatWithZero(cond, Simd2D(dest), Simd2D(lhs));
+    return;
+  }
+  ScratchSimd128Scope scratch(*this);
+  loadConstantSimd128(rhs, scratch);
+  compareFloat64x2(cond, lhs, scratch, dest);
 }
 
 // Load

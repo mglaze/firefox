@@ -477,6 +477,10 @@ pref("browser.urlbar.loglevel", "Error");
 // The maximum number of mentions to show.
 pref("browser.urlbar.mentions.maxResults", 5);
 
+// The maximum number of tab groups to show in the mentions panel. Capped
+// separately from maxResults so groups and tabs are limited independently.
+pref("browser.urlbar.mentions.maxGroupResults", 5);
+
 // the maximum number of results to show in autocomplete when doing richResults
 pref("browser.urlbar.maxRichResults", 10);
 
@@ -2008,6 +2012,41 @@ pref("browser.newtabpage.activity-stream.discoverystream.region-weather-config",
 // List of locales that weather widget supports.
 pref("browser.newtabpage.activity-stream.discoverystream.locale-weather-config", "bg,cs,da,de,el,en-CA,en-GB,en-US,es-ES,et,fi,fr,hr,hu,is,it,lv,nb-NO,nl,pl,pt-PT,ro,sk,sl,sv-SE,tr");
 
+// Regions with no widgets at all. Everywhere else the container is available
+// and on, and each widget's own prefs decide what appears. Blank means no
+// restriction, so there is no allow list here. Nightly ignores every list
+// below -- see marketGate in ActivityStream.sys.mjs.
+pref("browser.newtabpage.activity-stream.widgets.system.region-block", "");
+
+// Lists is available everywhere the container is except PL, where only the
+// current Nimbus experiment reveals it. Off by default in the US, DE and FR,
+// where the engaged cohort is turned on through Nimbus instead.
+pref("browser.newtabpage.activity-stream.widgets.system.lists.region-block", "PL");
+pref("browser.newtabpage.activity-stream.widgets.lists.region-block", "DE,FR,PL,US");
+
+// Focus timer is available everywhere the container is except PL, where only
+// the current Nimbus experiment reveals it. Off by default in the US, DE and
+// FR, where the engaged cohort is turned on through Nimbus instead.
+pref("browser.newtabpage.activity-stream.widgets.system.focusTimer.region-block", "PL");
+pref("browser.newtabpage.activity-stream.widgets.focusTimer.region-block", "DE,FR,PL,US");
+
+// Clocks is available everywhere the container is except PL, where only the
+// current Nimbus experiment reveals it. Off by default in the US, DE and FR,
+// where the engaged cohort is turned on through Nimbus instead.
+pref("browser.newtabpage.activity-stream.widgets.system.clocks.region-block", "PL");
+pref("browser.newtabpage.activity-stream.widgets.clocks.region-block", "DE,FR,PL,US");
+
+// Picture of the day is available everywhere the container is except PL, where
+// only the current Nimbus experiment reveals it. Off by default in the US, DE
+// and FR, where the engaged cohort is turned on through Nimbus instead.
+pref("browser.newtabpage.activity-stream.widgets.system.pictureOfTheDay.region-block", "PL");
+pref("browser.newtabpage.activity-stream.widgets.pictureOfTheDay.region-block", "DE,FR,PL,US");
+
+// Crossword is English-only, available in every region except PL and off by
+// default.
+pref("browser.newtabpage.activity-stream.widgets.system.crossword.locale-config", "en-CA,en-GB,en-US");
+pref("browser.newtabpage.activity-stream.widgets.system.crossword.region-block", "PL");
+
 // Promo card visibility
 pref("browser.newtabpage.activity-stream.discoverystream.promoCard.visible", true);
 
@@ -2449,6 +2488,11 @@ pref("browser.smartwindow.searchQuery.apiKey", "");
 // Smart Window: when true, search_the_web returns Exa snippets straight to the
 // main assistant instead of generating an answer from background page reads.
 pref("browser.smartwindow.searchTheWebFast", true);
+
+// Smart Window: when true, search_the_web asks Exa's /answers service for a
+// written answer and its citations in one call. Takes precedence over
+// browser.smartwindow.searchTheWebFast.
+pref("browser.smartwindow.searchTheWebAnswers", false);
 
 // Smart Window Logging
 pref("browser.smartwindow.aiTabHistory.logLevel", "Error");
@@ -3075,10 +3119,6 @@ pref("app.normandy.onsync_skew_sec", 600);
   pref("intl.multilingual.liveReloadBidirectional", false);
   pref("intl.multilingual.aboutWelcome.languageMismatchEnabled", false);
 #endif
-
-// Coverage ping is disabled by default.
-pref("toolkit.coverage.enabled", false);
-pref("toolkit.coverage.endpoint.base", "https://coverage.mozilla.org");
 
 // Enable personalized extension recommendations
 pref("browser.discovery.enabled", true);

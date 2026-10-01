@@ -33,19 +33,36 @@ const ENABLED =
  * and is left out of the shared-key check. A disabled menuitem with a role
  * attribute (a note, a heading) only displays information and is not one.
  *
+ * While the document has translations pending, the check waits for them, so
+ * that it compares the labels and accesskeys the user will see.
+ *
  * @param {Element} popup
  *   An open menupopup or panel-list, named in the message.
+ * @returns {Promise<void>}
+ *   Resolves once the check has run.
  */
-export function checkAccessKeys(popup) {
+export async function checkAccessKeys(popup) {
   if (!ENABLED || popup.hasAttribute("accesskey-conflicts-bug")) {
     return;
   }
+  let doc = popup.ownerDocument;
+  if (typeof Cu == "undefined") {
+    // L10nMutationsFinished is dispatched only to chrome.
+    while (doc.hasPendingL10nMutations) {
+      await new Promise(resolve =>
+        doc.defaultView.requestAnimationFrame(resolve)
+      );
+    }
+  } else if (doc.hasPendingL10nMutations) {
+    await new Promise(resolve =>
+      doc.addEventListener("L10nMutationsFinished", resolve, { once: true })
+    );
+  }
+
   let items =
     popup.localName == "panel-list"
       ? panelListItems(popup)
       : menupopupItems(popup);
-  // An item without a label has no translation yet.
-  // TODO(bug 2074127): This does mean we may be missing a conflict here.
   items = items.filter(item => item.label);
   let withKey = items.filter(item => item.accesskey);
   if (!withKey.length) {

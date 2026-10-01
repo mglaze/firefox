@@ -29,7 +29,6 @@ EXPORTS.mozilla += [
 
 EXPORTS.mozilla.glue += [
     "Debug.h",
-    "WinUtils.h",
 ]
 
 if CONFIG["OS_ARCH"] == "WINNT":
@@ -39,6 +38,9 @@ if CONFIG["OS_ARCH"] == "WINNT":
         "StackWalk_windows.h",
         "StackWalkThread.h",
         "WindowsDpiAwareness.h",
+    ]
+    EXPORTS.mozilla.glue += [
+        "WinUtils.h",
     ]
 
 SOURCES += [

@@ -445,9 +445,21 @@ class Components(
     val settingsIndexer by lazyMonitored {
         DefaultFenixSettingsIndexer(
             context = context,
+            preferenceFileInformationList =
+                DefaultFenixSettingsIndexer.defaultPreferenceFileInformationList(
+                    includeAutofillPreferences = settings.isAutofillSupported
+                ),
             additionalProviders =
                 settingsSearchProviders(summarizationFeatureConfiguration = core.summarizeFeatureSettings),
+            excludedPreferenceKeys = ::createSettingsIndexerExclusions,
         )
+    }
+
+    private fun createSettingsIndexerExclusions(): Set<String> = buildSet {
+        if (!settings.isAutofillSupported) {
+            add(context.getString(R.string.pref_key_passwords))
+            add(context.getString(R.string.pref_key_credit_cards))
+        }
     }
 
     val ipProtectionPromptRepository by lazyMonitored {

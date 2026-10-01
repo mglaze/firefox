@@ -404,20 +404,19 @@ nsresult SVGMotionSMILType::Interpolate(const SMILValue& aStartVal,
   const MotionSegmentArray& arr = ExtractMotionSegmentArray(aSMILVal);
 
   gfx::Matrix matrix;
-  uint32_t length = arr.Length();
-  for (uint32_t i = 0; i < length; i++) {
-    Point point;                              // initialized below
-    float rotateAngle = arr[i].mRotateAngle;  // might get updated below
-    if (arr[i].mSegmentType == SegmentType::Translation) {
-      point.x = arr[i].mU.mTranslationParams.mX;
-      point.y = arr[i].mU.mTranslationParams.mY;
-      MOZ_ASSERT(arr[i].mRotateType == RotateType::Explicit,
+  for (const auto& value : arr) {
+    Point point;                             // initialized below
+    float rotateAngle = value.mRotateAngle;  // might get updated below
+    if (value.mSegmentType == SegmentType::Translation) {
+      point.x = value.mU.mTranslationParams.mX;
+      point.y = value.mU.mTranslationParams.mY;
+      MOZ_ASSERT(value.mRotateType == RotateType::Explicit,
                  "'auto'/'auto-reverse' should have been converted to "
                  "explicit angles when we generated this translation");
     } else {
-      GetAngleAndPointAtDistance(arr[i].mU.mPathPointParams.mPath,
-                                 arr[i].mU.mPathPointParams.mDistToPoint,
-                                 arr[i].mRotateType, rotateAngle, point);
+      GetAngleAndPointAtDistance(value.mU.mPathPointParams.mPath,
+                                 value.mU.mPathPointParams.mDistToPoint,
+                                 value.mRotateType, rotateAngle, point);
     }
     matrix.PreTranslate(point.x, point.y);
     matrix.PreRotate(rotateAngle);

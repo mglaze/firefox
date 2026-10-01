@@ -1581,6 +1581,17 @@ VARIABLES = {
         size.
         """,
     ),
+    "SOURCE_HEADERS": (
+        ContextDerivedTypedList(Path, StrictOrderingOnAppendList),
+        list,
+        """Header files.
+
+        This variable contains a list of header files that can be used by
+        various steps of the build, including for static analysis.
+
+        Any header added to EXPORTS is also added to SOURCE_HEADERS implicitly.
+        """,
+    ),
     "GENERATED_FILES": (
         GeneratedFilesList,
         list,

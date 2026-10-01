@@ -20,8 +20,8 @@
  */
 
 /**
- * pdfjsVersion = 6.4.224
- * pdfjsBuild = d52fdf411
+ * pdfjsVersion = 6.4.232
+ * pdfjsBuild = 91041fb94
  */
 
 ;// ./src/shared/util.js
@@ -2061,7 +2061,7 @@ class FloatingToolbar {
 }
 
 ;// ./src/shared/internal_evt.js
-const INTERNAL_EVT = "90973740-0b99-49c5-aacb-ae9e20f4bdce";
+const INTERNAL_EVT = "819c6009-3aad-42ac-ac55-0a1aaa18f408";
 const internalOpt = Object.freeze({
   internal: INTERNAL_EVT
 });
@@ -8192,6 +8192,16 @@ class InfoUtils {
 ;// ./src/display/obj_bin_transform_display.js
 
 
+function readString(buffer, view, index, offset = 0) {
+  const {
+    decoder
+  } = InfoUtils;
+  for (let i = 0; i < index; i++) {
+    offset += view.getUint32(offset) + 4;
+  }
+  const length = view.getUint32(offset);
+  return decoder.decode(new Uint8Array(buffer, offset + 4, length));
+}
 class CssFontInfo {
   #buffer;
   #view;
@@ -8201,15 +8211,7 @@ class CssFontInfo {
   }
   #readString(index) {
     assert(index < CSS_FONT_INFO.strings.length, "Invalid string index");
-    const {
-      decoder
-    } = InfoUtils;
-    let offset = 0;
-    for (let i = 0; i < index; i++) {
-      offset += this.#view.getUint32(offset) + 4;
-    }
-    const length = this.#view.getUint32(offset);
-    return decoder.decode(new Uint8Array(this.#buffer, offset + 4, length));
+    return readString(this.#buffer, this.#view, index);
   }
   get fontFamily() {
     return this.#readString(0);
@@ -8233,15 +8235,7 @@ class SystemFontInfo {
   }
   #readString(index) {
     assert(index < SYSTEM_FONT_INFO.strings.length, "Invalid string index");
-    const {
-      decoder
-    } = InfoUtils;
-    let offset = 5;
-    for (let i = 0; i < index; i++) {
-      offset += this.#view.getUint32(offset) + 4;
-    }
-    const length = this.#view.getUint32(offset);
-    return decoder.decode(new Uint8Array(this.#buffer, offset + 4, length));
+    return readString(this.#buffer, this.#view, index, 5);
   }
   get css() {
     return this.#readString(0);
@@ -8256,16 +8250,10 @@ class SystemFontInfo {
     return this.#readString(3);
   }
   get style() {
-    const {
-      decoder
-    } = InfoUtils;
     let offset = 1;
     offset += 4 + this.#view.getUint32(offset);
-    const styleLength = this.#view.getUint32(offset);
-    const style = decoder.decode(new Uint8Array(this.#buffer, offset + 4, styleLength));
-    offset += 4 + styleLength;
-    const weightLength = this.#view.getUint32(offset);
-    const weight = decoder.decode(new Uint8Array(this.#buffer, offset + 4, weightLength));
+    const style = readString(this.#buffer, this.#view, 0, offset),
+      weight = readString(this.#buffer, this.#view, 1, offset);
     return {
       style,
       weight
@@ -8360,15 +8348,7 @@ class FontInfo {
   }
   #readString(index) {
     assert(index < FONT_INFO.strings.length, "Invalid string index");
-    const {
-      decoder
-    } = InfoUtils;
-    let offset = FONT_INFO.OFFSET_STRINGS + 4;
-    for (let i = 0; i < index; i++) {
-      offset += this.#view.getUint32(offset) + 4;
-    }
-    const length = this.#view.getUint32(offset);
-    return decoder.decode(new Uint8Array(this.#buffer, offset + 4, length));
+    return readString(this.#buffer, this.#view, index, FONT_INFO.OFFSET_STRINGS + 4);
   }
   get fallbackName() {
     return this.#readString(0);
@@ -14526,7 +14506,7 @@ function getDocument(src = {}) {
   }
   const docParams = {
     docId,
-    apiVersion: "6.4.224",
+    apiVersion: "6.4.232",
     data,
     password,
     disableAutoFetch,
@@ -16165,8 +16145,8 @@ class InternalRenderTask {
     }
   }
 }
-const version = "6.4.224";
-const build = "d52fdf411";
+const version = "6.4.232";
+const build = "91041fb94";
 
 ;// ./src/display/editor/color_picker.js
 

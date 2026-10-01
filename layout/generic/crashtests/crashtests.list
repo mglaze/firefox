@@ -25,7 +25,7 @@ load chrome://reftest/content/crashtests/layout/generic/crashtests/321224.xhtml
 load chrome://reftest/content/crashtests/layout/generic/crashtests/322780-1.xhtml
 load 323381-1.html
 load 323381-2.html
-asserts-if(Android,0-1) load 323386-1.html # Large sizes + font inflation
+asserts(0-1) load 323386-1.html # Large sizes, but font-metric dependent whether the calculation overflows.
 load 323389-1.html
 load 323389-2.html
 load 323493-1.html

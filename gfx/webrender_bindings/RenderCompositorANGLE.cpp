@@ -713,7 +713,7 @@ LayoutDeviceIntSize RenderCompositorANGLE::GetBufferSize() {
     return mBufferSize.ref();
   } else {
     auto size = mWidget->GetClientSize();
-    // This size is used for WR DEBUG_OVERLAY. Its DCTile does not like 0.
+    // This size is used for WR DEBUG_OVERLAY. Its surface does not like 0.
     size.width = std::max(size.width, 1);
     size.height = std::max(size.height, 1);
     return size;
@@ -836,16 +836,6 @@ void RenderCompositorANGLE::CompositorEndFrame() {
   mDCLayerTree->CompositorEndFrame();
 }
 
-void RenderCompositorANGLE::Bind(wr::NativeTileId aId,
-                                 wr::DeviceIntPoint* aOffset,
-                                 uint64_t* aSurfaceHandle,
-                                 wr::DeviceIntRect aDirtyRect,
-                                 wr::DeviceIntRect aValidRect) {
-  mDCLayerTree->Bind(aId, aOffset, aSurfaceHandle, aDirtyRect, aValidRect);
-}
-
-void RenderCompositorANGLE::Unbind() { mDCLayerTree->Unbind(); }
-
 void RenderCompositorANGLE::BindSwapChain(wr::NativeSurfaceId aId,
                                           const wr::DeviceIntRect* aDirtyRects,
                                           size_t aNumDirtyRects) {
@@ -855,13 +845,6 @@ void RenderCompositorANGLE::PresentSwapChain(
     wr::NativeSurfaceId aId, const wr::DeviceIntRect* aDirtyRects,
     size_t aNumDirtyRects) {
   mDCLayerTree->PresentSwapChain(aId, aDirtyRects, aNumDirtyRects);
-}
-
-void RenderCompositorANGLE::CreateSurface(wr::NativeSurfaceId aId,
-                                          wr::DeviceIntPoint aVirtualOffset,
-                                          wr::DeviceIntSize aTileSize,
-                                          bool aIsOpaque) {
-  mDCLayerTree->CreateSurface(aId, aVirtualOffset, aTileSize, aIsOpaque);
 }
 
 void RenderCompositorANGLE::CreateSwapChainSurface(wr::NativeSurfaceId aId,
@@ -886,16 +869,6 @@ void RenderCompositorANGLE::DestroySurface(NativeSurfaceId aId) {
   mDCLayerTree->DestroySurface(aId);
 }
 
-void RenderCompositorANGLE::CreateTile(wr::NativeSurfaceId aId, int aX,
-                                       int aY) {
-  mDCLayerTree->CreateTile(aId, aX, aY);
-}
-
-void RenderCompositorANGLE::DestroyTile(wr::NativeSurfaceId aId, int aX,
-                                        int aY) {
-  mDCLayerTree->DestroyTile(aId, aX, aY);
-}
-
 void RenderCompositorANGLE::AttachExternalImage(
     wr::NativeSurfaceId aId, wr::ExternalImageId aExternalImage) {
   mDCLayerTree->AttachExternalImage(aId, aExternalImage);
@@ -907,19 +880,6 @@ void RenderCompositorANGLE::AddSurface(
     wr::DeviceIntRect aRoundedClipRect, wr::ClipRadius aClipRadius) {
   mDCLayerTree->AddSurface(aId, aTransform, aClipRect, aImageRendering,
                            aRoundedClipRect, aClipRadius);
-}
-
-void RenderCompositorANGLE::GetCompositorCapabilities(
-    CompositorCapabilities* aCaps) {
-  RenderCompositor::GetCompositorCapabilities(aCaps);
-
-  if (StaticPrefs::gfx_webrender_dcomp_use_virtual_surfaces_AtStartup()) {
-    aCaps->virtual_surface_size = VIRTUAL_SURFACE_SIZE;
-  } else {
-    aCaps->virtual_surface_size = 0;
-  }
-  // DComp video overlay does not support negative scaling. See Bug 1831820
-  aCaps->supports_external_compositor_surface_negative_scaling = false;
 }
 
 void RenderCompositorANGLE::GetWindowProperties(WindowProperties* aProperties) {

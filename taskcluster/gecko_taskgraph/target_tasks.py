@@ -953,13 +953,6 @@ def target_tasks_general_perf_testing(full_task_graph, parameters, graph_config)
                 if "safari" in try_name and "video-playback-latency" in try_name:
                     return True
                 if "safari" and "benchmark" in try_name:
-                    # JetStream 3 fails with Safari 18.3 but not Safari-TP.
-                    # See bug 1996277.
-                    if (
-                        "safari-jetstream3" in try_name
-                        and "macosx1500-aarch64" in platform
-                    ):
-                        return False
                     return True
         # Android selection
         elif accept_raptor_android_build(platform):

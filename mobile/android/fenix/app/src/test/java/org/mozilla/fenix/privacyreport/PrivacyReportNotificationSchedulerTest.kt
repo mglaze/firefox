@@ -15,12 +15,15 @@ import androidx.work.WorkManager
 import androidx.work.testing.WorkManagerTestInitHelper
 import io.mockk.every
 import io.mockk.mockk
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.test.runTest
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.feature.session.TrackingProtectionUseCases
 import mozilla.components.support.base.android.NotificationsDelegate
 import mozilla.components.support.test.fakes.engine.FakeEngine
 import mozilla.components.support.test.robolectric.testContext
+import mozilla.components.support.utils.DateTimeProvider
 import mozilla.components.support.utils.FakeDateTimeProvider
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -51,7 +54,7 @@ private const val PRIVACY_REPORT_NOTIFICATION_WORK_NAME = "org.mozilla.fenix.pri
 private const val PRIVACY_REPORT_NOTIFICATION_FAKE_NOW = 1_000L
 
 @RunWith(RobolectricTestRunner::class)
-class PrivacyWorkerSchedulerTest {
+class PrivacyReportNotificationSchedulerTest {
 
     @get:Rule val gleanRule = FenixGleanTestRule(testContext)
 
@@ -243,6 +246,102 @@ class PrivacyWorkerSchedulerTest {
         }
 
     @Test
+    fun `GIVEN onboarding is incomplete WHEN updatePrivacyReportNotificationWorker is called THEN the worker is not scheduled`() =
+        runTest {
+            every { settings.shouldUseTrackingProtection } returns true
+            every { settings.weeklyPrivacyNotificationFeatureFlagEnabled } returns true
+            every { settings.onboardingCompletedTimestamp } returns -1L
+
+            shadowOf(testContext.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(true)
+
+            scheduler.updatePrivacyReportNotificationWorker()
+
+            val workExists =
+                WorkManager.getInstance(testContext)
+                    .getWorkInfosForUniqueWork(PRIVACY_REPORT_NOTIFICATION_WORK_NAME)
+                    .await()
+                    .isNotEmpty()
+
+            assertFalse(workExists)
+        }
+
+    @Test
+    fun `GIVEN notifications become unavailable and then available again WHEN updatePrivacyReportNotificationWorker is called THEN the worker is rescheduled`() =
+        runTest {
+            every { settings.shouldUseTrackingProtection } returns true
+            every { settings.weeklyPrivacyNotificationFeatureFlagEnabled } returns true
+            every { settings.onboardingCompletedTimestamp } returns 1_000L
+
+            val notificationManager = shadowOf(testContext.getSystemService(NotificationManager::class.java))
+            notificationManager.setNotificationsEnabled(true)
+
+            // Initial call: worker is scheduled.
+            scheduler.updatePrivacyReportNotificationWorker(
+                dateTimeProvider = FakeDateTimeProvider(currentTime = PRIVACY_REPORT_NOTIFICATION_FAKE_NOW)
+            )
+
+            val workInfosAfterScheduling =
+                WorkManager.getInstance(testContext)
+                    .getWorkInfosForUniqueWork(PRIVACY_REPORT_NOTIFICATION_WORK_NAME)
+                    .await()
+
+            assertEquals(1, workInfosAfterScheduling.size)
+            assertEquals(WorkInfo.State.ENQUEUED, workInfosAfterScheduling.single().state)
+
+            val initialWorkId = workInfosAfterScheduling.single().id
+
+            // Notifications disabled: worker is cancelled.
+            notificationManager.setNotificationsEnabled(false)
+            scheduler.updatePrivacyReportNotificationWorker()
+
+            val workInfosAfterCancellation =
+                WorkManager.getInstance(testContext)
+                    .getWorkInfosForUniqueWork(PRIVACY_REPORT_NOTIFICATION_WORK_NAME)
+                    .await()
+
+            assertTrue(workInfosAfterCancellation.all { it.state == WorkInfo.State.CANCELLED })
+
+            // Notifications re-enabled: worker should be scheduled again.
+            notificationManager.setNotificationsEnabled(true)
+            scheduler.updatePrivacyReportNotificationWorker(
+                dateTimeProvider = FakeDateTimeProvider(currentTime = PRIVACY_REPORT_NOTIFICATION_FAKE_NOW)
+            )
+
+            val workInfosAfterRescheduling =
+                WorkManager.getInstance(testContext)
+                    .getWorkInfosForUniqueWork(PRIVACY_REPORT_NOTIFICATION_WORK_NAME)
+                    .await()
+
+            assertEquals(1, workInfosAfterRescheduling.size)
+            assertEquals(WorkInfo.State.ENQUEUED, workInfosAfterRescheduling.single().state)
+            assertTrue(workInfosAfterRescheduling.single().id != initialWorkId)
+        }
+
+    @Test
+    fun `GIVEN the worker is already scheduled WHEN updatePrivacyReportNotificationWorker is called again THEN the schedule is not recomputed`() =
+        runTest {
+            every { settings.shouldUseTrackingProtection } returns true
+            every { settings.weeklyPrivacyNotificationFeatureFlagEnabled } returns true
+            every { settings.onboardingCompletedTimestamp } returns 1_000L
+            shadowOf(testContext.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(true)
+
+            val firstProvider = CountingDateTimeProvider()
+            scheduler.updatePrivacyReportNotificationWorker(dateTimeProvider = firstProvider)
+            assertTrue(firstProvider.callCount > 0)
+
+            val secondProvider = CountingDateTimeProvider()
+            scheduler.updatePrivacyReportNotificationWorker(dateTimeProvider = secondProvider)
+            assertEquals(0, secondProvider.callCount)
+
+            val workInfos =
+                WorkManager.getInstance(testContext)
+                    .getWorkInfosForUniqueWork(PRIVACY_REPORT_NOTIFICATION_WORK_NAME)
+                    .await()
+            assertEquals(1, workInfos.size)
+            assertEquals(WorkInfo.State.ENQUEUED, workInfos.single().state)
+        }
+
+    @Test
     fun `GIVEN the feature is enabled and notifications are allowed WHEN updatePrivacyReportNotificationWorker is called THEN notifications are reported as available`() =
         runTest {
             every { settings.shouldUseTrackingProtection } returns true
@@ -330,4 +429,18 @@ class PrivacyWorkerSchedulerTest {
 
             assertNull(TrackingProtection.privacyReportNotificationAvailability.testGetValue())
         }
+
+    private class CountingDateTimeProvider(
+        private val delegate: DateTimeProvider =
+            FakeDateTimeProvider(currentTime = PRIVACY_REPORT_NOTIFICATION_FAKE_NOW)
+    ) : DateTimeProvider {
+        var callCount = 0
+            private set
+
+        override fun currentLocalDate(): LocalDate = delegate.currentLocalDate().also { callCount++ }
+
+        override fun currentZoneId(): ZoneId = delegate.currentZoneId().also { callCount++ }
+
+        override fun currentTimeMillis(): Long = delegate.currentTimeMillis().also { callCount++ }
+    }
 }

@@ -271,7 +271,6 @@ const CANCELED_ERROR = "page generation was canceled";
  *   user's focus, the single source page's title, then a localized default.
  * @property {string} howCreated - How the page was generated.
  * @property {AITabContext} context - What the page was generated from.
- * @property {A2UIComponent[]} components - The surface's components.
  */
 
 /**
@@ -772,7 +771,8 @@ export class AITab {
     }
 
     // Pull the readable content for each requested URL (order-aligned with
-    // urls).
+    // urls). Structured results, so a refusal is distinguishable from page
+    // text rather than being composed into the page as if it were content.
     const contents = await lazy.GetPageContent.getPageContent(
       { url_list: urls, signal },
       conversation
@@ -780,6 +780,13 @@ export class AITab {
 
     if (signal?.aborted) {
       return { error: CANCELED_ERROR };
+    }
+
+    // Nothing readable: report it instead of generating a page whose only
+    // source material is the refusal. A partial read still generates, from
+    // whichever URLs were allowed.
+    if (!contents.some(result => result.ok)) {
+      return { error: "none of the requested pages could be read" };
     }
 
     // Split the source-text budget evenly across the requested tabs so the
@@ -793,7 +800,7 @@ export class AITab {
       // Prefer the open tab's title for the heading; fall back to the URL.
       const tab = lazy.GetPageContent.getTabWithURL(url);
       const heading = tab?.label || url;
-      const text = contents[index] ?? "";
+      const text = contents[index]?.content ?? "";
       // Best-effort og:image lookup ("" when none cached), gated on the same
       // access-control decision as the page text so a refused URL leaks no
       // image either.
@@ -890,7 +897,6 @@ export class AITab {
         urlsUsed,
         relevantMemories: [],
       },
-      components: structured.surface.components || [],
     };
 
     return { metadata, surface: structured.surface };

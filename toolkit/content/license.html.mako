@@ -41,7 +41,7 @@ ${app_license_block}\
     </p>
 
     <p>More specifically, most of the source code is available under the
-       <a href="about:license#mpl">Mozilla Public License 2.0</a> (MPL).
+       <a href="#mpl">Mozilla Public License 2.0</a> (MPL).
        The MPL has a
        <a href="https://www.mozilla.org/MPL/2.0/FAQ/">FAQ</a> to help
        you understand it. The remainder of the software which is not
@@ -55,7 +55,7 @@ ${app_license_block}\
 
     <ul>
 % for license in licenses:
-      <li><a href="about:license#${license['id']}">${license['title']}</a></li>
+      <li><a href="#${license['id']}">${license['title']}</a></li>
 % endfor
     </ul>
 
@@ -210,7 +210,7 @@ ${app_license_body_block}\
 
       <hr>
 
-      <p><a href="about:license#top">Return to top</a>.</p>
+      <p><a href="#top">Return to top</a>.</p>
     </div>
   </body>
 </html>

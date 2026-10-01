@@ -155,10 +155,14 @@ let propNameAllowlist = [
   { propName: "--panel-border-color", isFromDevTools: true },
   { propName: "--panel-box-shadow", isFromDevTools: true },
 
-  // This is a semantic panel design token provided by the design system that
-  // currently has no chrome CSS consumer, so it isn't referenced via var().
+  // These are semantic panel design tokens provided by the design system that
+  // currently have no chrome CSS consumer, so they aren't referenced via var().
   {
     propName: "--panel-background-color-dimmed-further",
+    isFromDevTools: false,
+  },
+  {
+    propName: "--panel-text-color-dimmed-further",
     isFromDevTools: false,
   },
 

@@ -514,22 +514,6 @@ describe("<DiscoveryStreamAdminUI>", () => {
       );
     });
 
-    // Bug 2063657: the sports widget is retired; removed in bug 2063656.
-    it("should not render any sports widget row", () => {
-      const { container } = renderWidgets({ "widgets.system.enabled": true });
-      expect(
-        container.querySelector('[id="widgets.system.sportsWidget.enabled"]')
-      ).not.toBeInTheDocument();
-      expect(
-        container.querySelector('[id="widgets.sportsWidget.live.enabled"]')
-      ).not.toBeInTheDocument();
-      expect(
-        container.querySelector(
-          '[id="widgets.sportsWidget.celebrations.enabled"]'
-        )
-      ).not.toBeInTheDocument();
-    });
-
     it("should sort the toggles A-Z by their customize panel label", async () => {
       // jsdom has no document.l10n; the labels are attribute-only messages.
       const labels = {

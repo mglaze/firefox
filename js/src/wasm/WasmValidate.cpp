@@ -4610,102 +4610,223 @@ static bool DecodeDataSection(Decoder& d, CodeMetadata* codeMeta,
   return d.finishSection(*range, "data");
 }
 
-static bool DecodeModuleNameSubsection(Decoder& d,
-                                       const CustomSectionRange& nameSection,
-                                       CodeMetadata* codeMeta,
-                                       ModuleMetadata* moduleMeta) {
-  Maybe<uint32_t> endOffset;
-  if (!d.startNameSubsection(NameType::Module, &endOffset)) {
-    return false;
-  }
-  if (!endOffset) {
-    return true;
-  }
-
-  Name moduleName;
-  if (!d.readVarU32(&moduleName.length)) {
-    return d.fail("failed to read module name length");
+static bool DecodeNameSectionName(Decoder& d,
+                                  const CustomSectionRange& nameSection,
+                                  const char* thing, Name* result) {
+  uint32_t length;
+  if (!d.readVarU32(&length)) {
+    return d.failf("failed to read %s name length", thing);
   }
 
   MOZ_ASSERT(d.currentOffset() >= nameSection.payload.start);
-  moduleName.offsetInNamePayload =
-      d.currentOffset() - nameSection.payload.start;
+  uint32_t offsetInNamePayload = d.currentOffset() - nameSection.payload.start;
 
-  const uint8_t* bytes;
-  if (!d.readBytes(moduleName.length, &bytes)) {
-    return d.fail("failed to read module name bytes");
+  const uint8_t* nameBytes;
+  if (!d.readBytes(length, &nameBytes)) {
+    return d.failf("failed to read %s name", thing);
   }
 
-  if (!d.finishNameSubsection(*endOffset)) {
-    return false;
+  if (!IsUtf8(AsChars(mozilla::Span(nameBytes, length)))) {
+    return d.failf("%s name was not valid UTF-8", thing);
   }
 
-  // Only save the module name if the whole subsection validates.
-  codeMeta->nameSection->moduleName = moduleName;
+  result->offsetInNamePayload = offsetInNamePayload;
+  result->length = length;
   return true;
 }
 
-static bool DecodeFunctionNameSubsection(Decoder& d,
-                                         const CustomSectionRange& nameSection,
-                                         CodeMetadata* codeMeta,
-                                         ModuleMetadata* moduleMeta) {
-  Maybe<uint32_t> endOffset;
-  if (!d.startNameSubsection(NameType::Function, &endOffset)) {
-    return false;
+template <typename F>
+static bool DecodeNameMapEntries(Decoder& d,
+                                 const CustomSectionRange& nameSection,
+                                 const char* thing, uint32_t maxThings,
+                                 const F& addName) {
+  uint32_t numNames;
+  if (!d.readVarU32(&numNames)) {
+    return d.failf("expected number of %s names", thing);
   }
-  if (!endOffset) {
-    return true;
+  if (numNames > maxThings) {
+    return d.failf("too many %s names", thing);
   }
-
-  uint32_t nameCount = 0;
-  if (!d.readVarU32(&nameCount) || nameCount > MaxFuncs) {
-    return d.fail("bad function name count");
-  }
-
-  NameVector funcNames;
-
-  for (uint32_t i = 0; i < nameCount; ++i) {
-    uint32_t funcIndex = 0;
-    if (!d.readVarU32(&funcIndex)) {
-      return d.fail("unable to read function index");
+  uint32_t minIdx = 0;
+  for (uint32_t i = 0; i < numNames; i++) {
+    uint32_t idx;
+    if (!d.readVarU32(&idx)) {
+      return d.failf("expected %s index", thing);
     }
-
-    // Names must refer to real functions and be given in ascending order.
-    if (funcIndex >= codeMeta->numFuncs() || funcIndex < funcNames.length()) {
-      return d.fail("invalid function index");
+    if (idx >= maxThings) {
+      return d.failf("%s index %" PRIu32 " is too large", thing, idx);
     }
-
-    Name funcName;
-    if (!d.readVarU32(&funcName.length) ||
-        funcName.length > JS::MaxStringLength) {
-      return d.fail("unable to read function name length");
+    if (idx < minIdx) {
+      return d.failf("out of order %s index", thing);
     }
+    minIdx = idx + 1;
 
-    if (!funcName.length) {
-      continue;
-    }
-
-    if (!funcNames.resize(funcIndex + 1)) {
+    Name name;
+    if (!DecodeNameSectionName(d, nameSection, thing, &name)) {
       return false;
     }
 
-    MOZ_ASSERT(d.currentOffset() >= nameSection.payload.start);
-    funcName.offsetInNamePayload =
-        d.currentOffset() - nameSection.payload.start;
-
-    if (!d.readBytes(funcName.length)) {
-      return d.fail("unable to read function name bytes");
+    if (!addName(idx, name)) {
+      return false;
     }
-
-    funcNames[funcIndex] = funcName;
   }
 
-  if (!d.finishNameSubsection(*endOffset)) {
-    return false;
+  return true;
+}
+
+template <typename F>
+static bool DecodeIndirectNameMapEntries(
+    Decoder& d, const CustomSectionRange& nameSection, const char* outerThing,
+    uint32_t maxOuterThings, const char* innerThing, uint32_t maxInnerThings,
+    const F& addName) {
+  uint32_t numOuterThingLists;
+  if (!d.readVarU32(&numOuterThingLists)) {
+    return d.failf("expected number of %s name lists", outerThing);
+  }
+  if (numOuterThingLists > maxOuterThings) {
+    return d.failf("too many %s name lists", outerThing);
+  }
+  uint32_t minOuterIdx = 0;
+  for (uint32_t i = 0; i < numOuterThingLists; i++) {
+    uint32_t outerIdx;
+    if (!d.readVarU32(&outerIdx)) {
+      return d.failf("expected %s index", outerThing);
+    }
+    if (outerIdx >= maxOuterThings) {
+      return d.failf("%s index %" PRIu32 " is too large", outerThing, outerIdx);
+    }
+    if (outerIdx < minOuterIdx) {
+      return d.failf("out of order %s index", outerThing);
+    }
+    minOuterIdx = outerIdx + 1;
+
+    if (!DecodeNameMapEntries(d, nameSection, innerThing, maxInnerThings,
+                              [&](uint32_t innerIdx, const Name& name) {
+                                return addName(
+                                    IndirectNameKey(outerIdx, innerIdx), name);
+                              })) {
+      return false;
+    }
   }
 
-  // Only save names if the entire subsection decoded correctly.
-  codeMeta->nameSection->funcNames = std::move(funcNames);
+  return true;
+}
+
+static bool DecodeNameMap(Decoder& d, const CustomSectionRange& nameSection,
+                          const char* thing, uint32_t maxThings,
+                          NameMap& result) {
+  return DecodeNameMapEntries(d, nameSection, thing, maxThings,
+                              [&](uint32_t idx, const Name& name) -> bool {
+                                return result.put(idx, name);
+                              });
+}
+
+static bool ValidateNameMap(Decoder& d, const CustomSectionRange& nameSection,
+                            const char* thing, uint32_t maxThings) {
+  return DecodeNameMapEntries(
+      d, nameSection, thing, maxThings,
+      [&](uint32_t idx, const Name& name) -> bool { return true; });
+}
+
+// Right now we have no need to actually save any indirect name maps, but to do
+// so in the future you can just copy ValidateIndirectNameMap and change the
+// lambda to actually save names into a map.
+
+static bool ValidateIndirectNameMap(
+    Decoder& d, const CustomSectionRange& nameSection, const char* outerThing,
+    uint32_t maxOuterThings, const char* innerThing, uint32_t maxInnerThings) {
+  return DecodeIndirectNameMapEntries(
+      d, nameSection, outerThing, maxOuterThings, innerThing, maxInnerThings,
+      [&](IndirectNameKey&& key, const Name& name) { return true; });
+}
+
+static bool DecodeNameSubsection(Decoder& d,
+                                 const CustomSectionRange& nameSection,
+                                 CodeMetadata* codeMeta, NameType nameType) {
+  switch (NameType(nameType)) {
+    case NameType::Module: {
+      Name moduleName;
+      if (!DecodeNameSectionName(d, nameSection, "module", &moduleName)) {
+        return false;
+      }
+      codeMeta->nameSection->moduleName = moduleName;
+    } break;
+    case NameType::Function: {
+      NameMap funcNames;
+      if (!DecodeNameMap(d, nameSection, "function", MaxFuncs, funcNames)) {
+        return false;
+      }
+      codeMeta->nameSection->funcNames = std::move(funcNames);
+    } break;
+    case NameType::Local: {
+      if (!ValidateIndirectNameMap(d, nameSection, "func", MaxFuncs, "local",
+                                   MaxLocals)) {
+        return false;
+      }
+    } break;
+    case NameType::Label: {
+      if (!ValidateIndirectNameMap(d, nameSection, "func", MaxFuncs, "label",
+                                   MaxFunctionBytes / 2)) {
+        return false;
+      }
+    } break;
+    case NameType::Type: {
+      if (!ValidateNameMap(d, nameSection, "type", MaxTypes)) {
+        return false;
+      }
+    } break;
+    case NameType::Table: {
+      if (!ValidateNameMap(d, nameSection, "table", MaxTables)) {
+        return false;
+      }
+    } break;
+    case NameType::Memory: {
+      if (!ValidateNameMap(d, nameSection, "memory", MaxMemories)) {
+        return false;
+      }
+    } break;
+    case NameType::Global: {
+      if (!ValidateNameMap(d, nameSection, "global", MaxGlobals)) {
+        return false;
+      }
+    } break;
+    case NameType::ElemSegment: {
+      if (!ValidateNameMap(d, nameSection, "elem segment", MaxElemSegments)) {
+        return false;
+      }
+    } break;
+    case NameType::DataSegment: {
+      if (!ValidateNameMap(d, nameSection, "data segment", MaxDataSegments)) {
+        return false;
+      }
+    } break;
+    case NameType::Field: {
+      if (!ValidateIndirectNameMap(d, nameSection, "type", MaxTypes, "field",
+                                   MaxStructFields)) {
+        return false;
+      }
+    } break;
+    case NameType::Tag: {
+      if (!ValidateNameMap(d, nameSection, "tag", MaxTags)) {
+        return false;
+      }
+    } break;
+    case NameType::Param: {
+      if (!ValidateIndirectNameMap(d, nameSection, "type", MaxTypes, "param",
+                                   MaxParams)) {
+        return false;
+      }
+    } break;
+    case NameType::TagParam: {
+      if (!ValidateIndirectNameMap(d, nameSection, "tag", MaxTags, "param",
+                                   MaxParams)) {
+        return false;
+      }
+    } break;
+    case NameType::Last:
+    default:
+      MOZ_CRASH();
+  }
   return true;
 }
 
@@ -4719,29 +4840,61 @@ static bool DecodeNameSection(Decoder& d, CodeMetadata* codeMeta,
     return true;
   }
 
-  codeMeta->nameSection.emplace((NameSection){
-      .customSectionIndex =
-          uint32_t(codeMeta->customSectionRanges.length() - 1),
-  });
+  codeMeta->nameSection.emplace();
+  codeMeta->nameSection->customSectionIndex =
+      uint32_t(codeMeta->customSectionRanges.length() - 1);
   const CustomSectionRange& nameSection = codeMeta->customSectionRanges.back();
 
-  // Once started, custom sections do not report validation errors.
+  Decoder nameSectionDecoder(d.currentPosition(),
+                             d.currentPosition() + nameSection.payload.size(),
+                             d.currentOffset(), d.error(), d.warnings());
+  {
+    Decoder& d = nameSectionDecoder;
+    // Once started, custom sections do not report validation errors.
 
-  if (!DecodeModuleNameSubsection(d, nameSection, codeMeta, moduleMeta)) {
-    goto finish;
-  }
+    uint8_t minNameType = 0;
+    while (true) {
+      if (d.done()) {
+        break;
+      }
 
-  if (!DecodeFunctionNameSubsection(d, nameSection, codeMeta, moduleMeta)) {
-    goto finish;
-  }
+      uint8_t nameTypeValue;
+      if (!d.readFixedU8(&nameTypeValue)) {
+        d.fail("expected name subsection type");
+        break;
+      }
+      if (nameTypeValue < minNameType) {
+        d.fail("out of order name subsections");
+        break;
+      }
+      if (nameTypeValue >= uint8_t(NameType::Last)) {
+        d.fail("invalid name subsection id");
+        break;
+      }
+      minNameType = nameTypeValue + 1;
 
-  while (d.currentOffset() < range->end) {
-    if (!d.skipNameSubsection()) {
-      goto finish;
+      uint32_t payloadLength;
+      if (!d.readVarU32(&payloadLength) || payloadLength > d.bytesRemain()) {
+        d.fail("bad name subsection payload length");
+        break;
+      }
+
+      Decoder nameSubsectionDecoder(d.currentPosition(),
+                                    d.currentPosition() + payloadLength,
+                                    d.currentOffset(), d.error(), d.warnings());
+      if (!DecodeNameSubsection(nameSubsectionDecoder, nameSection, codeMeta,
+                                NameType(nameTypeValue))) {
+        break;
+      }
+      if (!nameSubsectionDecoder.done()) {
+        d.fail("unconsumed bytes in name subsection");
+        break;
+      }
+      MOZ_RELEASE_ASSERT(d.readBytes(payloadLength));
     }
   }
+  MOZ_RELEASE_ASSERT(d.readBytes(nameSection.payload.size()));
 
-finish:
   if (!d.finishCustomSection(NameSectionName, *range)) {
     codeMeta->nameSection = mozilla::Nothing();
   }

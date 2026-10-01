@@ -15,6 +15,7 @@
 #include "NumericTools.h"
 #include "Point.h"
 #include "Tools.h"
+#include "fmt/ostream.h"
 #include "mozilla/Maybe.h"
 
 namespace mozilla {
@@ -29,7 +30,7 @@ struct RectTyped;
 
 template <class Units>
 struct MOZ_EMPTY_BASES IntMarginTyped
-    : public BaseMargin<int32_t, IntMarginTyped<Units>, IntCoordTyped<Units> >,
+    : public BaseMargin<int32_t, IntMarginTyped<Units>, IntCoordTyped<Units>>,
       public Units {
   static_assert(IsPixel<Units>::value,
                 "'Units' must be a coordinate system tag");
@@ -62,7 +63,7 @@ static_assert(sizeof(IntMargin) == sizeof(int32_t) * 4,
 
 template <class Units, class F = Float>
 struct MOZ_EMPTY_BASES MarginTyped
-    : public BaseMargin<F, MarginTyped<Units, F>, CoordTyped<Units, F> >,
+    : public BaseMargin<F, MarginTyped<Units, F>, CoordTyped<Units, F>>,
       public Units {
   static_assert(IsPixel<Units>::value,
                 "'Units' must be a coordinate system tag");
@@ -107,13 +108,13 @@ IntMarginTyped<Units> RoundedToInt(const MarginTyped<Units>& aMargin) {
 template <class Units>
 struct MOZ_EMPTY_BASES IntRectTyped
     : public BaseRect<int32_t, IntRectTyped<Units>, IntPointTyped<Units>,
-                      IntSizeTyped<Units>, IntMarginTyped<Units> >,
+                      IntSizeTyped<Units>, IntMarginTyped<Units>>,
       public Units {
   static_assert(IsPixel<Units>::value,
                 "'Units' must be a coordinate system tag");
 
   typedef BaseRect<int32_t, IntRectTyped<Units>, IntPointTyped<Units>,
-                   IntSizeTyped<Units>, IntMarginTyped<Units> >
+                   IntSizeTyped<Units>, IntMarginTyped<Units>>
       Super;
   typedef IntRectTyped<Units> Self;
   typedef IntParam<int32_t> ToInt;
@@ -265,13 +266,13 @@ static_assert(sizeof(IntRect) == sizeof(int32_t) * 4,
 template <class Units, class F = Float>
 struct MOZ_EMPTY_BASES RectTyped
     : public BaseRect<F, RectTyped<Units, F>, PointTyped<Units, F>,
-                      SizeTyped<Units, F>, MarginTyped<Units, F> >,
+                      SizeTyped<Units, F>, MarginTyped<Units, F>>,
       public Units {
   static_assert(IsPixel<Units>::value,
                 "'Units' must be a coordinate system tag");
 
   typedef BaseRect<F, RectTyped<Units, F>, PointTyped<Units, F>,
-                   SizeTyped<Units, F>, MarginTyped<Units, F> >
+                   SizeTyped<Units, F>, MarginTyped<Units, F>>
       Super;
 
   RectTyped() = default;
@@ -586,5 +587,18 @@ struct RoundedRect {
 
 }  // namespace gfx
 }  // namespace mozilla
+
+template <class Units>
+struct fmt::formatter<mozilla::gfx::IntMarginTyped<Units>>
+    : fmt::ostream_formatter {};
+template <class Units, class F>
+struct fmt::formatter<mozilla::gfx::MarginTyped<Units, F>>
+    : fmt::ostream_formatter {};
+template <class Units>
+struct fmt::formatter<mozilla::gfx::IntRectTyped<Units>>
+    : fmt::ostream_formatter {};
+template <class Units, class F>
+struct fmt::formatter<mozilla::gfx::RectTyped<Units, F>>
+    : fmt::ostream_formatter {};
 
 #endif /* MOZILLA_GFX_RECT_H_ */

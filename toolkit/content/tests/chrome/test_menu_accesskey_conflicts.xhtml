@@ -64,6 +64,14 @@
     <menuitem label="Three" accesskey="t" class="webextension-menuitem"/>
     <menuitem label="Four" accesskey="t" class="webextension-menuitem"/>
   </menupopup>
+  <menupopup id="translated">
+    <menuitem label="Undo" accesskey="u"/>
+    <menuitem id="translated-item"/>
+  </menupopup>
+  <menupopup id="retranslated">
+    <menuitem label="One" accesskey="o"/>
+    <menuitem id="retranslated-item" label="Two" accesskey="o"/>
+  </menupopup>
 
   <script class="testbody" type="application/javascript">
   <![CDATA[
@@ -75,7 +83,7 @@ const assert = new Assert((err, message) =>
   ok(!err, err ? err.message : message)
 );
 
-async function openAndCollectErrors(id) {
+async function openAndCollectErrors(id, onShown) {
   let errors = [];
   let sentinel = new Promise(resolve => {
     SpecialPowers.registerConsoleListener(msg => {
@@ -88,10 +96,24 @@ async function openAndCollectErrors(id) {
   });
   let popup = document.getElementById(id);
   let shown = new Promise(resolve =>
-    popup.addEventListener("popupshown", resolve, { once: true })
+    popup.addEventListener(
+      "popupshown",
+      () => {
+        onShown?.();
+        resolve();
+      },
+      { once: true }
+    )
   );
   popup.openPopup(document.getElementById("anchor"), "after_start");
   await shown;
+  if (document.hasPendingL10nMutations) {
+    await new Promise(resolve =>
+      document.addEventListener("L10nMutationsFinished", resolve, {
+        once: true,
+      })
+    );
+  }
   // The check runs in a system-group listener, after this one.
   await new Promise(resolve => SimpleTest.executeSoon(resolve));
   let hidden = new Promise(resolve =>
@@ -103,6 +125,37 @@ async function openAndCollectErrors(id) {
   await sentinel;
   return errors;
 }
+
+add_setup(function setup() {
+  L10nRegistry.getInstance().registerSources([
+    L10nFileSource.createMock(
+      "accesskey-test",
+      "app",
+      ["en-US"],
+      "/localization/{locale}/",
+      [
+        {
+          path: "/localization/en-US/accesskey-test.ftl",
+          source: `
+undo =
+  .label = Undo
+  .accesskey = u
+redo =
+  .label = Redo
+  .accesskey = r
+`,
+        },
+      ]
+    ),
+  ]);
+  SimpleTest.registerCleanupFunction(() =>
+    L10nRegistry.getInstance().removeSources(["accesskey-test"])
+  );
+  let link = document.createElementNS("http://www.w3.org/1999/xhtml", "link");
+  link.rel = "localization";
+  link.href = "accesskey-test.ftl";
+  document.documentElement.append(link);
+});
 
 add_task(async function testDistinctAccessKeys() {
   is(
@@ -215,6 +268,35 @@ add_task(async function testDisabledItems() {
     "A disabled item counts for a missing accesskey"
   );
   ok(!errors[0].includes("Note"), "A disabled note counts for neither");
+});
+
+add_task(async function testPendingTranslation() {
+  let item = document.getElementById("translated-item");
+  let errors = await openAndCollectErrors("translated", () => {
+    document.l10n.setAttributes(item, "undo");
+    ok(document.hasPendingL10nMutations, "Translation is pending at popupshown");
+  });
+  is(item.getAttribute("label"), "Undo", "The item got its translation");
+  is(errors.length, 1, "The check waits for the pending translation");
+  assert.stringContains(
+    errors[0],
+    `accesskey "u" is shared by "Undo", "Undo"`,
+    "The translated item is compared"
+  );
+});
+
+add_task(async function testPendingRetranslation() {
+  let item = document.getElementById("retranslated-item");
+  let errors = await openAndCollectErrors("retranslated", () => {
+    document.l10n.setAttributes(item, "redo");
+    ok(document.hasPendingL10nMutations, "Translation is pending at popupshown");
+  });
+  is(item.getAttribute("label"), "Redo", "The item got its translation");
+  is(
+    errors.length,
+    0,
+    "The check compares the translation, not the label it replaces"
+  );
 });
 
   ]]>

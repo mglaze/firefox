@@ -33,7 +33,7 @@ add_setup(async function () {
 
 add_task(async function test_idonly_distribution() {
   let { DistributionManagement } = ChromeUtils.importESModule(
-    "resource:///modules/distribution.sys.mjs"
+    "moz-src:///browser/components/distribution.sys.mjs"
   );
 
   DistributionManagement.applyCustomizations();

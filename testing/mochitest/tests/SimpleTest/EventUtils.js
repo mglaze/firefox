@@ -3971,6 +3971,7 @@ async function synthesizePlainDragAndDrop(aParams) {
     let srcSession = srcWindowUtils.dragSession;
     if (!srcSession) {
       if (expectCancelDragStart) {
+        this.AccessibilityUtils?.suppressClickHandling(true);
         synthesizeMouse(
           srcElement,
           finalX,
@@ -3978,6 +3979,7 @@ async function synthesizePlainDragAndDrop(aParams) {
           { type: "mouseup", id },
           srcWindow
         );
+        this.AccessibilityUtils?.suppressClickHandling(false);
         return;
       }
       throw new Error("drag hasn't been started by the operation");

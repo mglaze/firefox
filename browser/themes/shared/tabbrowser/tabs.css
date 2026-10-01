@@ -3157,7 +3157,7 @@ toolbar:not(#TabsToolbar) #firefox-view-button {
 #alltabs-button {
   list-style-image: url("chrome://browser/skin/search-tabs.svg");
 
-  @media not (-moz-platform: linux) {
+  @media (-moz-platform: windows) {
     #TabsToolbar & {
       list-style-image: url("chrome://global/skin/icons/arrow-down.svg");
     }

@@ -199,6 +199,10 @@ export class UrlbarChild extends JSWindowActorChild {
       removePrefObserver: lazy.UrlbarPrefs.removeObserver.bind(
         lazy.UrlbarPrefs
       ),
+      toggleResultMenuKeyboardAccessible:
+        lazy.UrlbarPrefs.toggleResultMenuKeyboardAccessible.bind(
+          lazy.UrlbarPrefs
+        ),
     };
   }
 

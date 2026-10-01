@@ -47,6 +47,7 @@ import org.mozilla.fenix.ui.efficiency.core.VerbHost
 import org.mozilla.fenix.ui.efficiency.core.WaitPolicy
 import org.mozilla.fenix.ui.efficiency.core.driveUntil
 import org.mozilla.fenix.ui.efficiency.core.facts
+import org.mozilla.fenix.ui.efficiency.core.groupAbsent
 import org.mozilla.fenix.ui.efficiency.core.groupPresent
 import org.mozilla.fenix.ui.efficiency.core.pageReady
 import org.mozilla.fenix.ui.efficiency.core.reportAround
@@ -383,6 +384,23 @@ abstract class BasePage(protected val composeRule: AndroidComposeTestRule<HomeAc
         if (!present) {
             dumpFailure("mozVerifyElementsByGroup failed: $pageName group '$groupLabel'")
             assertionFailure("Not all elements in group '$groupLabel' are present")
+        }
+        return this
+    }
+
+    fun mozVerifyElementsByGroupAbsent(group: SelectorGroup): BasePage {
+        val groupLabel = group.toString()
+        val absent =
+            groupAbsent(
+                verb = "verify_group_absent",
+                label = "${pageName}_$groupLabel",
+                selectors = selectorCatalog.selectorsIn(group),
+                policy = WaitPolicy.Poll(),
+                applyPreconditions = false,
+            )
+        if (!absent) {
+            dumpFailure("mozVerifyElementsByGroupAbsent failed: $pageName group '$groupLabel'")
+            assertionFailure("Not all elements in group '$groupLabel' are absent")
         }
         return this
     }

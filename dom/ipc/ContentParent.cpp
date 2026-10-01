@@ -5054,7 +5054,7 @@ mozilla::ipc::IPCResult ContentParent::RecvFindImageText(
 
 bool ContentParent::ShouldContinueFromReplyTimeout() {
   RefPtr<ProcessHangMonitor> monitor = ProcessHangMonitor::Get();
-  return !monitor || !monitor->ShouldTimeOutCPOWs();
+  return !monitor || !monitor->ShouldTimeOutReplies();
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvAddIdleObserver(

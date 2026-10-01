@@ -472,6 +472,8 @@ void SMRegExpMacroAssembler::EmitSkipUntilBitInTableSimd(
   masm_.bitmaskInt8x16(result, temp1_, /*temp=*/bitmask);
 #  elif defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
   masm_.bitmaskInt8x16(result, temp1_);
+#  elif defined(JS_CODEGEN_LOONG64)
+  masm_.bitmaskInt8x16(result, temp1_);
 #  else
 #    error Unsupported SIMD architecture
 #  endif
@@ -501,6 +503,10 @@ bool SMRegExpMacroAssembler::SkipUntilBitInTableUseSimd(int advance_by) {
 #  if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
   // SSSE3 is required for pshufb (used to implement swizzleInt8x16).
   if (!js::jit::Assembler::HasSSSE3()) {
+    return false;
+  }
+#  elif defined(JS_CODEGEN_LOONG64)
+  if (!js::jit::Assembler::HasLSX()) {
     return false;
   }
 #  endif

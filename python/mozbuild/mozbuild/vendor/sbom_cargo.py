@@ -164,7 +164,7 @@ def collect_dependency_kinds(topsrcdir, topobjdir=None, cargo=None, log=None):
             env=environment,
             capture_output=True,
             check=True,
-            text=True,
+            encoding="utf-8",
         ).stdout
     except OSError as error:
         report(f"cannot run {cargo or 'cargo'}: {error}")

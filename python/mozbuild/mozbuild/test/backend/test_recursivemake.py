@@ -8,6 +8,7 @@ import unittest
 
 import mozpack.path as mozpath
 from mozfile import json
+from mozpack.copier import FileRegistry
 from mozpack.manifests import InstallManifest
 from mozunit import main
 
@@ -713,20 +714,42 @@ class TestRecursiveMakeBackend(BackendTester):
         self.assertEqual(lines, expected)
 
     def test_objdir_files_rename(self):
-        """Ensure OBJDIR_FILES entries install with a copy rule that
-        preserves mode, renaming when a (source, target_basename) tuple
-        is given."""
+        """OBJDIR_FILES entries install through one manifest for the directory
+        and tier, renaming when a (source, target_basename) tuple is given."""
         env = self._consume("objdir-files-rename", RecursiveMakeBackend)
 
+        manifest = "$(topobjdir)/_build_manifests/built/misc"
         backend_path = mozpath.join(env.topobjdir, "backend.mk")
-        backend = open(backend_path).read()
-        # The renamed entry is copied to its new name by a rule that preserves mode.
-        self.assertIn("misc:: $(topobjdir)/_tests/foo/renamed\n", backend)
-        self.assertIn("$(call py_action,install_objdir_file renamed,", backend)
-        self.assertIn(" $(topobjdir)/_tests/foo/renamed)\n", backend)
-        # A plain entry is copied under its own basename, also preserving mode.
-        self.assertIn("misc:: $(topobjdir)/_tests/foo/baz\n", backend)
-        self.assertIn("$(call py_action,install_objdir_file baz,", backend)
+        lines = open(backend_path).read().splitlines()
+        self.assertEqual(lines.count(f"misc:: {manifest}.track"), 1)
+        self.assertEqual(
+            lines.count(
+                f"\t$(call py_action,process_install_manifest misc,"
+                f"--track {manifest}.track $(topobjdir) {manifest})"
+            ),
+            1,
+        )
+        self.assertEqual(
+            [l for l in lines if l.startswith(f"{manifest}.track:")],
+            [
+                f"{manifest}.track: {manifest}",
+                f"{manifest}.track: bar",
+                f"{manifest}.track: baz",
+            ],
+        )
+
+        m = InstallManifest(
+            path=mozpath.join(env.topobjdir, "_build_manifests", "built", "misc")
+        )
+        registry = FileRegistry()
+        m.populate_registry(registry)
+        self.assertEqual(
+            {dest: f.path for dest, f in registry},
+            {
+                "_tests/foo/renamed": mozpath.join(env.topobjdir, "bar"),
+                "_tests/foo/baz": mozpath.join(env.topobjdir, "baz"),
+            },
+        )
 
     def test_resources(self):
         """Ensure RESOURCE_FILES is handled properly."""

@@ -484,14 +484,8 @@ already_AddRefed<BrowsingContext> BrowsingContext::CreateDetached(
   fields.Get<IDX_DefaultLoadFlags>() =
       inherit ? inherit->GetDefaultLoadFlags() : nsIRequest::LOAD_NORMAL;
 
-  fields.Get<IDX_OrientationLock>() = mozilla::hal::ScreenOrientation::None;
-
   fields.Get<IDX_UseGlobalHistory>() =
       inherit ? inherit->GetUseGlobalHistory() : false;
-
-  fields.Get<IDX_UseErrorPages>() = true;
-
-  fields.Get<IDX_TouchEventsOverrideInternal>() = TouchEventsOverride::None;
 
   fields.Get<IDX_AllowJavascript>() =
       inherit ? inherit->GetAllowJavascript() : true;
@@ -525,8 +519,6 @@ already_AddRefed<BrowsingContext> BrowsingContext::CreateDetached(
     fields.Get<IDX_ShouldDelayMediaFromStart>() =
         StaticPrefs::media_block_autoplay_until_in_foreground();
   }
-
-  fields.Get<IDX_AnimationsPlayBackRateMultiplier>() = 1.0;
 
   RefPtr<BrowsingContext> context;
   if (XRE_IsParentProcess()) {
@@ -3304,7 +3296,7 @@ bool BrowsingContext::CanSet(FieldIndex<IDX_ControlsDocumentPiP>, bool,
   const bool setByOwner =
       aSource ? Canonical()->IsOwnedByProcess(aSource->ChildID())
               : IsInProcess();
-  return IsTopContent() && setByOwner;
+  return IsContent() && setByOwner;
 }
 
 void BrowsingContext::DidSet(FieldIndex<IDX_ControlsDocumentPiP>,
@@ -3350,12 +3342,6 @@ void BrowsingContext::DidSet(FieldIndex<IDX_ControlsDocumentPiP>,
   }
 }
 
-bool BrowsingContext::CanSet(FieldIndex<IDX_ExplicitActive>,
-                             const ExplicitActiveStatus&,
-                             ContentParent* aSource) {
-  return XRE_IsParentProcess() && IsTop() && !aSource;
-}
-
 void BrowsingContext::DidSet(FieldIndex<IDX_ExplicitActive>,
                              ExplicitActiveStatus aOldValue) {
   MOZ_ASSERT(IsTop());
@@ -3376,11 +3362,6 @@ void BrowsingContext::DidSet(FieldIndex<IDX_ExplicitActive>,
   }
 
   ActivenessChanged(isActive);
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_InRDMPane>, const bool&,
-                             ContentParent* aSource) {
-  return XRE_IsParentProcess() && IsTop() && !aSource;
 }
 
 void BrowsingContext::DidSet(FieldIndex<IDX_InRDMPane>, bool aOldValue) {
@@ -3453,23 +3434,12 @@ void BrowsingContext::DidSet(FieldIndex<IDX_ForceDesktopViewport>,
   }
 }
 
-bool BrowsingContext::CanSet(FieldIndex<IDX_PageAwakeRequestCount>,
-                             uint32_t aNewValue, ContentParent* aSource) {
-  return IsTop() && XRE_IsParentProcess() && !aSource;
-}
-
 void BrowsingContext::DidSet(FieldIndex<IDX_PageAwakeRequestCount>,
                              uint32_t aOldValue) {
   if (!IsTop() || aOldValue == GetPageAwakeRequestCount()) {
     return;
   }
   Group()->UpdateToplevelsSuspendedIfNeeded();
-}
-
-auto BrowsingContext::CanSet(FieldIndex<IDX_AllowJavascript>, bool aValue,
-                             ContentParent* aSource) -> CanSetResult {
-  return XRE_IsParentProcess() && !aSource ? CanSetResult::Allow
-                                           : CanSetResult::Deny;
 }
 
 void BrowsingContext::DidSet(FieldIndex<IDX_AllowJavascript>, bool aOldValue) {
@@ -3506,11 +3476,6 @@ bool BrowsingContext::InactiveForSuspend() const {
   // might still need to run their script. Eg. waiting for media keys to resume
   // media, playing web audio, waiting in a video call conference room.
   return !IsActive() && GetPageAwakeRequestCount() == 0;
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_TouchEventsOverrideInternal>,
-                             dom::TouchEventsOverride, ContentParent* aSource) {
-  return XRE_IsParentProcess() && !aSource;
 }
 
 void BrowsingContext::DidSet(FieldIndex<IDX_TouchEventsOverrideInternal>,
@@ -3668,21 +3633,6 @@ void BrowsingContext::DidSet(FieldIndex<IDX_Muted>) {
   });
 }
 
-bool BrowsingContext::CanSet(FieldIndex<IDX_IsAppTab>, const bool& aValue,
-                             ContentParent* aSource) {
-  return XRE_IsParentProcess() && !aSource && IsTop();
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_HasSiblings>, const bool& aValue,
-                             ContentParent* aSource) {
-  return XRE_IsParentProcess() && !aSource && IsTop();
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_ShouldDelayMediaFromStart>,
-                             const bool& aValue, ContentParent* aSource) {
-  return IsTop();
-}
-
 void BrowsingContext::DidSet(FieldIndex<IDX_ShouldDelayMediaFromStart>,
                              bool aOldValue) {
   MOZ_ASSERT(IsTop(), "Set attribute on non top-level context!");
@@ -3696,11 +3646,6 @@ void BrowsingContext::DidSet(FieldIndex<IDX_ShouldDelayMediaFromStart>,
       }
     });
   }
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_OverrideDPPX>, const float& aValue,
-                             ContentParent* aSource) {
-  return XRE_IsParentProcess() && !aSource && IsTop();
 }
 
 void BrowsingContext::DidSet(FieldIndex<IDX_OverrideDPPX>, float aOldValue) {
@@ -3778,12 +3723,6 @@ auto BrowsingContext::LegacyRevertIfNotOwningOrParentProcess(
   return CanSetResult::Allow;
 }
 
-bool BrowsingContext::CanSet(FieldIndex<IDX_IsActiveBrowserWindowInternal>,
-                             const bool& aValue, ContentParent* aSource) {
-  // Should only be set in the parent process.
-  return XRE_IsParentProcess() && !aSource && IsTop();
-}
-
 void BrowsingContext::DidSet(FieldIndex<IDX_IsActiveBrowserWindowInternal>,
                              bool aOldValue) {
   bool isActivateEvent = GetIsActiveBrowserWindowInternal();
@@ -3844,17 +3783,6 @@ auto BrowsingContext::CanSet(FieldIndex<IDX_AllowContentRetargetingOnChildren>,
   return LegacyRevertIfNotOwningOrParentProcess(aSource);
 }
 
-bool BrowsingContext::CanSet(FieldIndex<IDX_FullscreenAllowedByOwner>,
-                             const bool& aAllowed, ContentParent* aSource) {
-  return CheckOnlyEmbedderCanSet(aSource);
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_UseErrorPages>,
-                             const bool& aUseErrorPages,
-                             ContentParent* aSource) {
-  return CheckOnlyEmbedderCanSet(aSource);
-}
-
 TouchEventsOverride BrowsingContext::TouchEventsOverride() const {
   for (const auto* bc = this; bc; bc = bc->GetParent()) {
     auto tev = bc->GetTouchEventsOverrideInternal();
@@ -3881,7 +3809,7 @@ bool BrowsingContext::CanSet(FieldIndex<IDX_WatchedByDevToolsInternal>,
   // Can only be enabled or disabled from the Parent Process and only on top
   // level BC. Also can only be enabled when at least one DevTools is currently
   // active.
-  return XRE_IsParentProcess() && !aSource && IsTop() &&
+  return XRE_IsParentProcess() && !aSource &&
          (!aWatchedByDevTools || ChromeUtils::IsDevToolsOpened());
 }
 void BrowsingContext::SetWatchedByDevTools(bool aWatchedByDevTools,
@@ -3987,31 +3915,15 @@ void BrowsingContext::DidSet(FieldIndex<IDX_DefaultLoadFlags>) {
   }
 }
 
-bool BrowsingContext::CanSet(FieldIndex<IDX_UseGlobalHistory>,
-                             const bool& aUseGlobalHistory,
-                             ContentParent* aSource) {
-  // Should only be set in the parent process.
-  //  return XRE_IsParentProcess() && !aSource;
-  return true;
-}
-
 auto BrowsingContext::CanSet(FieldIndex<IDX_UserAgentOverride>,
                              const nsCString& aUserAgent,
                              ContentParent* aSource) -> CanSetResult {
-  if (!IsTop()) {
-    return CanSetResult::Deny;
-  }
-
   return LegacyRevertIfNotOwningOrParentProcess(aSource);
 }
 
 auto BrowsingContext::CanSet(FieldIndex<IDX_PlatformOverride>,
                              const nsString& aPlatform, ContentParent* aSource)
     -> CanSetResult {
-  if (!IsTop()) {
-    return CanSetResult::Deny;
-  }
-
   return LegacyRevertIfNotOwningOrParentProcess(aSource);
 }
 
@@ -4021,11 +3933,6 @@ bool BrowsingContext::CheckOnlyEmbedderCanSet(ContentParent* aSource) {
     return Canonical()->IsEmbeddedInProcess(childId);
   }
   return mEmbeddedByThisProcess;
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_EmbedderElementType>,
-                             const Maybe<nsString>&, ContentParent* aSource) {
-  return CheckOnlyEmbedderCanSet(aSource);
 }
 
 auto BrowsingContext::CanSet(FieldIndex<IDX_CurrentInnerWindowId>,
@@ -4054,11 +3961,6 @@ auto BrowsingContext::CanSet(FieldIndex<IDX_CurrentInnerWindowId>,
   }
 
   return CanSetResult::Allow;
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_ParentInitiatedNavigationEpoch>,
-                             const uint64_t& aValue, ContentParent* aSource) {
-  return XRE_IsParentProcess() && !aSource;
 }
 
 void BrowsingContext::DidSet(FieldIndex<IDX_CurrentInnerWindowId>) {
@@ -4104,20 +4006,6 @@ void BrowsingContext::DidSet(FieldIndex<IDX_IsPopupSpam>) {
   if (GetIsPopupSpam()) {
     PopupBlocker::RegisterOpenPopupSpam();
   }
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_MessageManagerGroup>,
-                             const nsString& aMessageManagerGroup,
-                             ContentParent* aSource) {
-  // Should only be set in the parent process on toplevel.
-  return XRE_IsParentProcess() && !aSource && IsTopContent();
-}
-
-bool BrowsingContext::CanSet(
-    FieldIndex<IDX_OrientationLock>,
-    const mozilla::hal::ScreenOrientation& aOrientationLock,
-    ContentParent* aSource) {
-  return IsTop();
 }
 
 bool BrowsingContext::IsLoading() {
@@ -4324,13 +4212,6 @@ void BrowsingContext::DidSet(FieldIndex<IDX_HasSessionHistory>,
   }
 }
 
-bool BrowsingContext::CanSet(
-    FieldIndex<IDX_TargetTopLevelLinkClicksToBlankInternal>,
-    const bool& aTargetTopLevelLinkClicksToBlankInternal,
-    ContentParent* aSource) {
-  return XRE_IsParentProcess() && !aSource && IsTop();
-}
-
 bool BrowsingContext::CanSet(FieldIndex<IDX_BrowserId>, const uint64_t& aValue,
                              ContentParent* aSource) {
   if (XRE_IsParentProcess() && !aSource) {
@@ -4348,29 +4229,7 @@ bool BrowsingContext::CanSet(FieldIndex<IDX_PendingInitialization>,
                              bool aNewValue, ContentParent* aSource) {
   // Can only be cleared from `true` to `false`, and should only ever be set on
   // the toplevel BrowsingContext.
-  return IsTop() && GetPendingInitialization() && !aNewValue;
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_TopLevelCreatedByWebContent>,
-                             const bool& aNewValue, ContentParent* aSource) {
-  // Should only be set after creation in the parent process.
-  return XRE_IsParentProcess() && !aSource && IsTop();
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_HasRestoreData>, bool aNewValue,
-                             ContentParent* aSource) {
-  return IsTop();
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_IsUnderHiddenEmbedderElement>,
-                             const bool& aIsUnderHiddenEmbedderElement,
-                             ContentParent* aSource) {
-  return true;
-}
-
-bool BrowsingContext::CanSet(FieldIndex<IDX_ForceOffline>, bool aNewValue,
-                             ContentParent* aSource) {
-  return XRE_IsParentProcess() && !aSource;
+  return GetPendingInitialization() && !aNewValue;
 }
 
 void BrowsingContext::DidSet(FieldIndex<IDX_IsUnderHiddenEmbedderElement>,

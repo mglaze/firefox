@@ -18,6 +18,7 @@ const mockState = {
     values: {
       ...INITIAL_STATE.Prefs.values,
       "widgets.system.enabled": true,
+      "widgets.enabled": true,
       "widgets.system.stocks.enabled": true,
       "widgets.stocks.enabled": true,
       "widgets.stocks.size": "medium",

@@ -1272,6 +1272,9 @@ FFmpegVideoDecoder<LIBAV_VER>::AllocateTextureClientForImage(
                                  &paddedCbCrSize.height);
   data.mCbCrStride = paddedCbCrSize.Width() * bytesPerChannel;
 
+  paddedYSize.height += GetBuffer2StrideAlign(data.mYStride);
+  paddedCbCrSize.height += GetBuffer2StrideAlign(data.mCbCrStride);
+
   // Setting other attributes
   data.mPictureRect = gfx::IntRect(
       mInfo.ScaledImageRect(aCodecContext->width, aCodecContext->height)

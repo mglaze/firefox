@@ -120,11 +120,11 @@ class WindowGlobalParent final : public WindowContext,
   already_AddRefed<JSWindowActorParent> GetExistingActor(
       const nsACString& aName);
 
-  // Get this actor's manager if it is not an in-process actor. Returns
-  // |nullptr| if the actor has been torn down, or is in-process.
+  // Get this actor's manager if it is not an in-process actor.
+  // Returns |nullptr| if the actor is in-process.
   BrowserParent* GetBrowserParent() const;
 
-  ContentParent* GetContentParent();
+  ContentParent* GetContentParent() const;
 
   // The principal of this WindowGlobal. This value will not change over the
   // lifetime of the WindowGlobal object, even to reflect changes in

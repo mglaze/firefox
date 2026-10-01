@@ -227,6 +227,8 @@ skip-if = [
 
 ["browser_aiwindow_smartbar_suggestions.js"]
 
+["browser_aiwindow_smartbar_tab_group_mentions.js"]
+
 ["browser_aiwindow_smartbar_tab_switch.js"]
 
 ["browser_aiwindow_smartbar_tabgroups.js"]
