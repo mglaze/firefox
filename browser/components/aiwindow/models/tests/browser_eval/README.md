@@ -59,21 +59,27 @@ SMARTWINDOW_E2E_MODES=sidebar \
 
 ## **How to view the reports**
 - Open `artifacts/smartwindow-e2e-rollup-<date>.html` in Firefox. The log line `Roll-up written to …` gives the exact path.
-- Click a scenario name, or "View failures", to open its detailed report.
+- Click a cell in "Scenarios by model", a scenario name or "View failures" to open the scenario's detailed report. A cell opens it filtered to that model.
 - Judge scores load from `smartwindow-e2e-judge-<date>.js` in the same folder, so keep the files together.
 - The reports work on desktop and phone.
 
 ## **How to understand the reports**
-- **Headline:** the overall answer, for example "Investigate: model. 2 of 3 models need attention, including the default model."
-- **Model table:** each model's verdict, how many attempts passed, and its most common problem.
-- **Verdicts:**
-  - Healthy: 80% or more passed, with no browser failures.
-  - Investigate: model: the model made mistakes (Models team).
-  - Investigate: browser: Firefox didn't do what the model asked (Firefox front end).
-  - Inconclusive: mostly backend errors.
-  - Not run: skipped.
-- **Hot spots:** the scenarios with the most failures, and which models failed them.
-- **Scenarios by model:** each scenario's verdict per model. On a phone, these show as red, amber or green blocks.
+- **Headline:** the overall answer, for example "Needs attention. 2 of 3 models need attention: qwen3 (default), tool use; mistral, wrong result." "Run details" next to the date shows tokens, skips, service errors and retries.
+- **Model table:** each model's status, how many scenarios it passed, its pass rate over all attempts and its most common problem.
+- **Status colors:**
+  - Green: 80% or more passed, with no Firefox bugs. The pill says Healthy.
+  - Yellow: 60 to 79% passed.
+  - Red: under 60% passed, or any Firefox bug.
+  - Gray: mostly service errors, or not run.
+  - A model takes the color of its worst scenario.
+- **Categories:** yellow and red pills name the main kind of failure, and who to notify:
+  - Tool use: the model didn't call the tool, or called it in a way Firefox couldn't act on (Models / prompt team).
+  - Wrong result: the model used the tools but grouped the wrong tabs (Models team).
+  - Firefox bug: Firefox didn't do what the model asked (Smart Window front end).
+  - Service errors: MLPA, auth or network errors (MLPA owners, if it keeps happening).
+  - Not run: skipped for the token budget or by the smoke check.
+- **Hot spots:** the scenarios with the most failures. Expand one to see which models failed, why, and a link to their failures.
+- **Scenarios by model:** each scenario's status per model. Yellow and red cells add the pass rate and the judge score. On a phone, these show as collapsed blocks like the hot spots.
 - **Judge scores:** an LLM's second opinion, scored 1 to 10. They don't change the verdict. "Not calibrated" means the judge disagrees with the browser check too often to trust in summaries.
 - **Help:** tap any pill marked **?** for a quick explanation, or use the blue **How to read** button for the full guide.
 

@@ -785,7 +785,7 @@ const HELP = `
     <h2 id="help-title">How to read this report</h2>
     <button type="button" class="help-close">Close</button>
   </div>
-  <p class="muted">Tap a verdict or score (the ones marked with <span class="tap-hint">?</span>) for a short explanation.</p>
+  <p class="muted">Tap a status or score (the ones marked with <span class="tap-hint">?</span>) for a short explanation.</p>
   <section id="help-page">
     <h3>The page</h3>
     <table class="help-table">
@@ -839,7 +839,7 @@ const HELP = `
   </section>
   <section id="help-judge">
     <h3>Judge scores</h3>
-    <p class="muted">An LLM second opinion, 1 to 10, on passes and model failures. It does not change verdicts.</p>
+    <p class="muted">An LLM second opinion, 1 to 10, on passes and model failures. It does not change the status.</p>
     <table class="help-table">
       <thead><tr><th>Score</th><th>What it asks</th><th>Shown on</th></tr></thead>
       <tbody>
@@ -1194,7 +1194,7 @@ ${budgetBanner(report)}
 
 <h2 class="desktop-only">Summary by model</h2>
 <table class="stack desktop-only">
-  <thead><tr><th>Model</th><th>Verdict</th><th>Pass rate</th><th>Failures</th><th>Not run</th><th>Tokens per pass</th></tr></thead>
+  <thead><tr><th>Model</th><th>Status</th><th>Pass rate</th><th>Failures</th><th>Not run</th><th>Tokens per pass</th></tr></thead>
   <tbody>${summaryRows}</tbody>
 </table>
 <details>
@@ -1217,7 +1217,7 @@ ${budgetBanner(report)}
     } Label and confirmation choice are ignored.</dd>
     <dt>Tier</dt><dd>${escapeHTML(tierText)}</dd>
     <dt>Attempts per model</dt><dd>${report.attemptsPerModel}</dd>
-    <dt>Verdict gate</dt><dd>Healthy at a pass rate of ${percent(report.passRateGate)} or more with no browser failures.</dd>
+    <dt>Status colors</dt><dd>Green at a pass rate of ${percent(report.passRateGate)} or more with no Firefox bugs, yellow at ${percent(WARNING_GATE)} or more, red below that or with any Firefox bug.</dd>
     <dt>Tokens (this scenario)</dt><dd>${formatTokens(scenarioTokens.input)} input / ${formatTokens(scenarioTokens.output)} output (${formatTokens(scenarioTokens.cached)} cached), chat model only</dd>
     <dt>Token budget</dt><dd>${
       report.tokenBudget?.limit
@@ -1236,7 +1236,7 @@ ${budgetBanner(report)}
     <option value="">All</option><option>pass</option><option>model</option><option>product</option>
     <option>infra</option><option>budget</option><option>smoke-check</option>
   </select></label>
-  <label>Verdict <select id="filter-verdict"><option value="">All</option>${verdictOptions}</select></label>
+  <label>Status <select id="filter-verdict"><option value="">All</option>${verdictOptions}</select></label>
   <label><input type="checkbox" id="filter-failures"> Failures only</label>
   <span id="filter-count"></span>
 </div>
