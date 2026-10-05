@@ -95,7 +95,8 @@ PYCODE
 fi
 
 ${work_dir}/python/bin/python3 -m pip install --upgrade pip==23.0
-${work_dir}/python/bin/python3 -m pip install -r ${GECKO_PATH}/build/psutil_requirements.txt -r ${GECKO_PATH}/build/zstandard_requirements.txt
+${work_dir}/python/bin/python3 -m pip install -r ${GECKO_PATH}/build/psutil_requirements.txt -r ${GECKO_PATH}/build/zstandard_requirements.txt -r ${GECKO_PATH}/build/pyyaml_requirements.txt
+${work_dir}/python/bin/python3 -c "import yaml; assert yaml.__with_libyaml__"
 
 case `uname -s` in
     Darwin)

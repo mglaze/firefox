@@ -3279,7 +3279,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // On x86_shared, limited to !=, ==, <=, >
   inline void compareInt8x16(Assembler::Condition cond, FloatRegister lhs,
                              const SimdConstant& rhs, FloatRegister dest)
-      DEFINED_ON(x86_shared, arm64);
+      DEFINED_ON(x86_shared, arm64, loong64);
 
   // On arm64, use any integer comparison condition.
   inline void compareInt8x16(Assembler::Condition cond, FloatRegister lhs,
@@ -3297,7 +3297,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // On x86_shared, limited to !=, ==, <=, >
   inline void compareInt16x8(Assembler::Condition cond, FloatRegister lhs,
                              const SimdConstant& rhs, FloatRegister dest)
-      DEFINED_ON(x86_shared, arm64);
+      DEFINED_ON(x86_shared, arm64, loong64);
 
   // On x86_shared, limited to !=, ==, <=, >
   inline void compareInt32x4(Assembler::Condition cond, FloatRegister rhs,
@@ -3306,7 +3306,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   inline void compareInt32x4(Assembler::Condition cond, FloatRegister lhs,
                              const SimdConstant& rhs, FloatRegister dest)
-      DEFINED_ON(x86_shared, arm64);
+      DEFINED_ON(x86_shared, arm64, loong64);
 
   // On arm64, use any integer comparison condition.
   inline void compareInt32x4(Assembler::Condition cond, FloatRegister lhs,
@@ -3333,7 +3333,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   inline void compareInt64x2(Assembler::Condition cond, FloatRegister lhs,
                              const SimdConstant& rhs, FloatRegister dest)
-      DEFINED_ON(arm64);
+      DEFINED_ON(arm64, loong64);
 
   // Set each lane to all ones if lhs & rhs is nonzero in it, else to zero.
   inline void testBitsInt8x16(FloatRegister lhs, FloatRegister rhs,

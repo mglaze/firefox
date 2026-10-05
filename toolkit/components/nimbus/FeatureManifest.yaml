@@ -5781,18 +5781,6 @@ jpeg-xl:
         branch: user
         pref: "image.jxl.enabled"
 
-css-masonry:
-  description: "CSS Masonry Layout"
-  owner: dholbert@mozilla.com
-  hasExposure: false
-  variables:
-    enabled:
-      type: boolean
-      description: Whether or not to enable CSS masonry layout.
-      setPref:
-        branch: user
-        pref: "layout.css.grid-template-masonry-value.enabled"
-
 windowsUIAutomation:
   description: Support for the Windows UI Automation API
   owner: jteh@mozilla.com

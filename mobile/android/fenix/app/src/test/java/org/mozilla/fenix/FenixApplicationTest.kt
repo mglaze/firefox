@@ -219,6 +219,7 @@ class FenixApplicationTest {
             dohSettingsProvider,
             mozillaProductDetector = mozillaProductDetector,
             powerManagerInfoProvider = powerManagerInfoProvider,
+            isAutomotiveDevice = true,
         )
 
         // Verify that browser defaults metrics are set.
@@ -266,6 +267,7 @@ class FenixApplicationTest {
         assertEquals(true, Metrics.ramMoreThanThreshold.testGetValue())
         assertEquals(true, PowerSavingMode.activeAtStartup.testGetValue())
         assertEquals(7L, Metrics.deviceTotalRam.testGetValue())
+        assertEquals(true, Metrics.isAndroidAutomotive.testGetValue())
         assertEquals("Max", Preferences.dohProtectionLevel.testGetValue())
         assertEquals("ENABLED_PRIVATE_ONLY", Preferences.httpsOnlyMode.testGetValue())
         assertEquals(true, Preferences.globalPrivacyControlEnabled.testGetValue())

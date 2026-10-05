@@ -467,22 +467,26 @@ void SMRegExpMacroAssembler::EmitSkipUntilBitInTableSimd(
   masm_.bitwiseAndSimd128(bitmask, row, result);
   masm_.compareInt8x16(Assembler::Equal, result, bitmask, result);
 
-  // Extract high bit of each byte into temp1
+  // Compress the matching bytes into a scalar mask in temp1. If no byte
+  // matched, advance to the next chunk. Otherwise, store the index of the
+  // lowest matching byte in temp0. On arm64 the mask has four bits per byte,
+  // so the trailing zero count is divided by four.
 #  if defined(JS_CODEGEN_ARM64)
-  masm_.bitmaskInt8x16(result, temp1_, /*temp=*/bitmask);
-#  elif defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
+  masm_.nibbleMaskInt8x16(result, temp1_, /*temp=*/bitmask);
+  masm_.branchTestPtr(Assembler::Zero, temp1_, temp1_, &advanceVector);
+  masm_.ctz64(js::jit::Register64(temp1_), js::jit::Register64(temp0_));
+  masm_.rshiftPtr(Imm32(2), temp0_);
+#  elif defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64) || \
+      defined(JS_CODEGEN_LOONG64)
   masm_.bitmaskInt8x16(result, temp1_);
-#  elif defined(JS_CODEGEN_LOONG64)
-  masm_.bitmaskInt8x16(result, temp1_);
+  masm_.branchTest32(Assembler::Zero, temp1_, temp1_, &advanceVector);
+  masm_.ctz32(temp1_, temp0_, /*knownNotZero=*/true);
 #  else
 #    error Unsupported SIMD architecture
 #  endif
 
-  masm_.branchTest32(Assembler::Zero, temp1_, temp1_, &advanceVector);
-
-  // Found a match in this 16-byte chunk. Locate the lowest set bit and
-  // advance current_position_ by that index, then jump to on_match.
-  masm_.ctz32(temp1_, temp0_, /*knownNotZero=*/true);
+  // Found a match in this 16-byte chunk. Advance current_position_ by the
+  // index of the lowest matching byte, then jump to on_match.
   masm_.addPtr(temp0_, current_position_);
   masm_.jump(LabelOrBacktrack(on_match));
 

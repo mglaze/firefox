@@ -11,6 +11,9 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.view.inputmethod.InputMethodManager
 import androidx.core.graphics.createBitmap
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsAnimationCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
@@ -33,6 +36,7 @@ import org.mozilla.geckoview.ScreenLength
 import org.mozilla.geckoview.test.rule.GeckoSessionTestRule
 import org.mozilla.geckoview.test.rule.GeckoSessionTestRule.AssertCalled
 import org.mozilla.geckoview.test.util.AssertUtils
+import org.mozilla.geckoview.test.util.UiThreadUtils
 
 @RunWith(AndroidJUnit4::class)
 @MediumTest
@@ -41,6 +45,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
     private val dynamicToolbarMaxHeight = 100
     private lateinit var imm: InputMethodManager
     private lateinit var view: GeckoView
+    private var imeAnimations = 0
 
     @get:Rule override val rules: RuleChain = RuleChain.outerRule(activityRule).around(sessionRule)
 
@@ -53,6 +58,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
             activity.view.setDynamicToolbarMaxHeight(dynamicToolbarMaxHeight)
             imm = activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             view = activity.view as GeckoView
+            ViewCompat.setWindowInsetsAnimationCallback(view.rootView, imeAnimationTracker)
         }
     }
 
@@ -60,9 +66,64 @@ class InteractiveWidgetTest : BaseSessionTest() {
     fun cleanup() {
         try {
             activityRule.scenario.onActivity { activity ->
+                ViewCompat.setWindowInsetsAnimationCallback(view.rootView, null)
                 activity.view.releaseSession()
             }
         } catch (e: Exception) {}
+    }
+
+    private val imeAnimationTracker =
+        object :
+            WindowInsetsAnimationCompat.Callback(
+                WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE
+            ) {
+            override fun onPrepare(animation: WindowInsetsAnimationCompat) {
+                if ((animation.typeMask and WindowInsetsCompat.Type.ime()) != 0) {
+                    imeAnimations++
+                }
+            }
+
+            override fun onProgress(
+                insets: WindowInsetsCompat,
+                runningAnimations: MutableList<WindowInsetsAnimationCompat>,
+            ): WindowInsetsCompat = insets
+
+            override fun onEnd(animation: WindowInsetsAnimationCompat) {
+                if ((animation.typeMask and WindowInsetsCompat.Type.ime()) != 0) {
+                    imeAnimations = maxOf(0, imeAnimations - 1)
+                }
+            }
+        }
+
+    // Waits until the ime is shown or hidden and its insets animation has finished.
+    private fun awaitIme(accepted: Boolean, visible: Boolean) {
+        assertThat("IME request accepted", accepted, equalTo(true))
+        UiThreadUtils.waitForCondition(
+            {
+                val imeVisible = ViewCompat.getRootWindowInsets(view)?.isVisible(WindowInsetsCompat.Type.ime()) ?: false
+                imeVisible == visible && imeAnimations == 0
+            },
+            sessionRule.timeoutMillis,
+        )
+    }
+
+    private fun showKeyboard() = awaitIme(imm.showSoftInput(view, 0), visible = true)
+
+    private fun hideKeyboard() = awaitIme(imm.hideSoftInputFromWindow(view.windowToken, 0), visible = false)
+
+    private fun hideDynamicToolbar() {
+        val resized =
+            mainSession.evaluatePromiseJS(
+                """
+                new Promise(resolve => {
+                  window.addEventListener('resize', () => { resolve(true); }, { once: true });
+                });
+                """
+                    .trimIndent()
+            )
+        mainSession.waitForRoundTrip()
+        view.setVerticalClipping(-dynamicToolbarMaxHeight)
+        assertThat("resize event", resized.value as Boolean, equalTo(true))
     }
 
     private fun ensureKeyboardOpen() {
@@ -84,7 +145,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
         mainSession.waitForRoundTrip()
 
         // Open the software keyboard.
-        imm.showSoftInput(view, 0)
+        showKeyboard()
 
         assertThat(
             "The visual viewport height should be changed in response to the the keyboard showing",
@@ -172,7 +233,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
         AssertUtils.assertScreenshotResult(result, reference)
 
         // Close the software keyboard.
-        imm.hideSoftInputFromWindow(view.getWindowToken(), 0)
+        hideKeyboard()
     }
 
     @GeckoSessionTestRule.NullDelegate(Autofill.Delegate::class)
@@ -188,9 +249,9 @@ class InteractiveWidgetTest : BaseSessionTest() {
         ensureKeyboardOpen()
 
         // Collapse the dynamic toolbar.
-        view.setVerticalClipping(-dynamicToolbarMaxHeight)
-        mainSession.flushApzRepaints()
+        hideDynamicToolbar()
         mainSession.promiseAllPaintsDone()
+        mainSession.flushApzRepaints()
 
         // With the dynamic toolbar collapsed the fixed viewport covers the area the
         // toolbar used to occupy, so a `bottom: 0` fixed element reaches the large
@@ -208,7 +269,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
         )
 
         // Close the software keyboard.
-        imm.hideSoftInputFromWindow(view.getWindowToken(), 0)
+        hideKeyboard()
     }
 
     @GeckoSessionTestRule.NullDelegate(Autofill.Delegate::class)
@@ -223,13 +284,10 @@ class InteractiveWidgetTest : BaseSessionTest() {
 
         ensureKeyboardOpen()
 
-        // Hide the dynamic toolbar.
-        view.setVerticalClipping(-dynamicToolbarMaxHeight)
+        hideDynamicToolbar()
 
-        // To make sure the dynamic toolbar height has been reflected into APZ.
-        mainSession.flushApzRepaints()
-        // Also to make sure the dynamic toolbar height has been reflected on the main-thread.
         mainSession.promiseAllPaintsDone()
+        mainSession.flushApzRepaints()
 
         // Scroll the visual viewport to the bottom.
         mainSession.panZoomController.scrollTo(
@@ -253,7 +311,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
         AssertUtils.assertScreenshotResult(result, reference)
 
         // Close the software keyboard.
-        imm.hideSoftInputFromWindow(view.getWindowToken(), 0)
+        hideKeyboard()
     }
 
     @GeckoSessionTestRule.NullDelegate(Autofill.Delegate::class)
@@ -266,13 +324,10 @@ class InteractiveWidgetTest : BaseSessionTest() {
         mainSession.promiseAllPaintsDone()
         mainSession.flushApzRepaints()
 
-        // Hide the dynamic toolbar.
-        view.setVerticalClipping(-dynamicToolbarMaxHeight)
+        hideDynamicToolbar()
 
-        // To make sure the dynamic toolbar height has been reflected into APZ.
-        mainSession.flushApzRepaints()
-        // Also to make sure the dynamic toolbar height has been reflected on the main-thread.
         mainSession.promiseAllPaintsDone()
+        mainSession.flushApzRepaints()
 
         fun footerBottom(): Double =
             mainSession.evaluateJS("document.querySelector('.footer').getBoundingClientRect().bottom") as Double
@@ -315,7 +370,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
         AssertUtils.assertScreenshotResult(result, reference)
 
         // Close the software keyboard.
-        imm.hideSoftInputFromWindow(view.getWindowToken(), 0)
+        hideKeyboard()
     }
 
     @GeckoSessionTestRule.NullDelegate(Autofill.Delegate::class)
@@ -331,7 +386,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
         view.requestFocus()
 
         // Open the software keyboard.
-        imm.showSoftInput(view, 0)
+        showKeyboard()
 
         // Hide the dynamic toolbar.
         view.setVerticalClipping(-dynamicToolbarMaxHeight)
@@ -373,7 +428,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
         AssertUtils.assertScreenshotResult(result, reference)
 
         // Close the software keyboard.
-        imm.hideSoftInputFromWindow(view.getWindowToken(), 0)
+        hideKeyboard()
     }
 
     @GeckoSessionTestRule.NullDelegate(Autofill.Delegate::class)
@@ -401,7 +456,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
         )
 
         // Close the software keyboard.
-        imm.hideSoftInputFromWindow(view.getWindowToken(), 0)
+        hideKeyboard()
     }
 
     @GeckoSessionTestRule.NullDelegate(Autofill.Delegate::class)
@@ -458,7 +513,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
         mainSession.waitForRoundTrip()
 
         // Dismiss the software keyboard.
-        imm.hideSoftInputFromWindow(view.getWindowToken(), 0)
+        hideKeyboard()
 
         assertThat(
             "The visual viewport height should be changed",
@@ -544,7 +599,7 @@ class InteractiveWidgetTest : BaseSessionTest() {
         )
 
         // Close the software keyboard.
-        imm.hideSoftInputFromWindow(view.getWindowToken(), 0)
+        hideKeyboard()
     }
 
     @GeckoSessionTestRule.NullDelegate(Autofill.Delegate::class)
@@ -559,13 +614,10 @@ class InteractiveWidgetTest : BaseSessionTest() {
 
         ensureKeyboardOpen()
 
-        // Hide the dynamic toolbar.
-        view.setVerticalClipping(-dynamicToolbarMaxHeight)
+        hideDynamicToolbar()
 
-        // To make sure the dynamic toolbar height has been reflected into APZ.
-        mainSession.flushApzRepaints()
-        // Also to make sure the dynamic toolbar height has been reflected on the main-thread.
         mainSession.promiseAllPaintsDone()
+        mainSession.flushApzRepaints()
 
         mainSession.evaluateJS("document.querySelector('#fixed').scrollIntoView()")
 
@@ -592,6 +644,6 @@ class InteractiveWidgetTest : BaseSessionTest() {
         )
 
         // Close the software keyboard.
-        imm.hideSoftInputFromWindow(view.getWindowToken(), 0)
+        hideKeyboard()
     }
 }

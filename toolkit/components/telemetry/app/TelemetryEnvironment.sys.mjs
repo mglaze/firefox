@@ -843,10 +843,10 @@ EnvironmentCache.prototype = {
    *
    * @param aPreferences A map of preferences names and their recording policy.
    */
-  _watchPreferences(aPreferences) {
+  async _watchPreferences(aPreferences) {
     this._stopWatchingPrefs();
     this._watchedPrefs = aPreferences;
-    this._updateSettings();
+    await this._updateSettings();
     this._startWatchingPrefs();
   },
 
@@ -1162,12 +1162,13 @@ EnvironmentCache.prototype = {
   /**
    * Determine if we're the default browser.
    *
+   * @async
    * @returns null on error, true if we are the default browser, or false otherwise.
    */
-  _isDefaultBrowser() {
-    let isDefault = (service, ...args) => {
+  async _isDefaultBrowser() {
+    let isDefault = async (service, ...args) => {
       try {
-        return !!service.isDefaultBrowser(...args);
+        return await service.isDefaultBrowserAsync(...args);
       } catch (ex) {
         this._log.error(
           "_isDefaultBrowser - Could not determine if default browser",
@@ -1206,7 +1207,7 @@ EnvironmentCache.prototype = {
     }
   },
 
-  _updateDefaultBrowser() {
+  async _updateDefaultBrowser() {
     if (AppConstants.platform === "android") {
       return;
     }
@@ -1220,7 +1221,7 @@ EnvironmentCache.prototype = {
     this._currentEnvironment.settings = this._currentEnvironment.settings || {};
 
     this._currentEnvironment.settings.isDefaultBrowser =
-      this._isDefaultBrowser();
+      await this._isDefaultBrowser();
 
     Glean.browser.defaultAtLaunch.set(
       this._currentEnvironment.settings.isDefaultBrowser
@@ -1230,7 +1231,7 @@ EnvironmentCache.prototype = {
   /**
    * Update the cached settings data.
    */
-  _updateSettings() {
+  async _updateSettings() {
     let updateChannel = null;
     try {
       updateChannel = Utils.getUpdateChannel();
@@ -1260,7 +1261,7 @@ EnvironmentCache.prototype = {
     if (AppConstants.MOZ_BUILD_APP == "browser") {
       this._updateAttribution();
     }
-    this._updateDefaultBrowser();
+    await this._updateDefaultBrowser();
     this._updateSearchEngine();
     this._loadAsyncUpdateSettingsFromCache();
 

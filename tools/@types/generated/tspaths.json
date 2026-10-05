@@ -49,9 +49,6 @@
       "chrome://browser/content/aiwindow/components/ai-website-chip.mjs": [
         "../../../browser/components/aiwindow/ui/components/ai-website-chip/ai-website-chip.mjs"
       ],
-      "chrome://browser/content/aiwindow/components/tab-group-icon.mjs": [
-        "../../../browser/components/aiwindow/ui/components/tab-group-icon/tab-group-icon.mjs"
-      ],
       "chrome://browser/content/aiwindow/components/ai-website-confirmation.mjs": [
         "../../../browser/components/aiwindow/ui/components/ai-website-confirmation/ai-website-confirmation.mjs"
       ],
@@ -156,6 +153,9 @@
       ],
       "chrome://browser/content/aiwindow/components/smartwindow-topsites.mjs": [
         "../../../browser/components/aiwindow/ui/components/smartwindow-topsites/smartwindow-topsites.mjs"
+      ],
+      "chrome://browser/content/aiwindow/components/tab-group-icon.mjs": [
+        "../../../browser/components/aiwindow/ui/components/tab-group-icon/tab-group-icon.mjs"
       ],
       "chrome://browser/content/aiwindow/components/website-chip-container.mjs": [
         "../../../browser/components/aiwindow/ui/components/website-chip-container/website-chip-container.mjs"
@@ -7114,12 +7114,6 @@
       "resource://normandy/lib/ActionsManager.sys.mjs": [
         "../../../toolkit/components/normandy/lib/ActionsManager.sys.mjs"
       ],
-      "resource://normandy/lib/AddonRollouts.sys.mjs": [
-        "../../../toolkit/components/normandy/lib/AddonRollouts.sys.mjs"
-      ],
-      "resource://normandy/lib/AddonStudies.sys.mjs": [
-        "../../../toolkit/components/normandy/lib/AddonStudies.sys.mjs"
-      ],
       "resource://normandy/lib/CleanupManager.sys.mjs": [
         "../../../toolkit/components/normandy/lib/CleanupManager.sys.mjs"
       ],
@@ -7144,20 +7138,8 @@
       "resource://normandy/lib/NormandyUtils.sys.mjs": [
         "../../../toolkit/components/normandy/lib/NormandyUtils.sys.mjs"
       ],
-      "resource://normandy/lib/PreferenceExperiments.sys.mjs": [
-        "../../../toolkit/components/normandy/lib/PreferenceExperiments.sys.mjs"
-      ],
-      "resource://normandy/lib/PreferenceRollouts.sys.mjs": [
-        "../../../toolkit/components/normandy/lib/PreferenceRollouts.sys.mjs"
-      ],
       "resource://normandy/lib/RecipeRunner.sys.mjs": [
         "../../../toolkit/components/normandy/lib/RecipeRunner.sys.mjs"
-      ],
-      "resource://normandy/lib/Storage.sys.mjs": [
-        "../../../toolkit/components/normandy/lib/Storage.sys.mjs"
-      ],
-      "resource://normandy/lib/TelemetryEvents.sys.mjs": [
-        "../../../toolkit/components/normandy/lib/TelemetryEvents.sys.mjs"
       ],
       "resource://pdf.js/PdfEmbedFallbackStreamConverter.sys.mjs": [
         "../../../toolkit/components/pdfjs/content/PdfEmbedFallbackStreamConverter.sys.mjs"

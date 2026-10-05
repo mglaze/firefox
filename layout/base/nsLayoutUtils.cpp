@@ -7128,7 +7128,7 @@ SurfaceFromElementResult nsLayoutUtils::SurfaceFromOffscreenCanvas(
 
 SurfaceFromElementResult nsLayoutUtils::SurfaceFromVideoFrame(
     VideoFrame* aVideoFrame, uint32_t aSurfaceFlags,
-    RefPtr<DrawTarget>& aTarget) {
+    RefPtr<DrawTarget>& aTarget, bool aOptimizeSourceSurface) {
   SurfaceFromElementResult result;
 
   RefPtr<layers::Image> layersImage = aVideoFrame->GetImage();
@@ -7218,10 +7218,10 @@ SurfaceFromElementResult nsLayoutUtils::SurfaceFromVideoFrame(
     result.mPrincipal = global->PrincipalOrNull();
   }
 
-  if (aTarget) {
+  if (aTarget && aOptimizeSourceSurface) {
     // They gave us a DrawTarget to optimize for, so even though we may have a
-    // layers::Image, we should unconditionally try to grab a SourceSurface and
-    // try to optimize it.
+    // layers::Image, we should try to grab a SourceSurface and try to optimize
+    // it if requested.
     if (result.mLayersImage) {
       MOZ_ASSERT(!result.mSourceSurface);
       result.mSourceSurface = result.mLayersImage->GetAsSourceSurface();

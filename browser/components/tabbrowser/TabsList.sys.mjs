@@ -477,7 +477,7 @@ export class TabsPanel extends TabsListBase {
       case TABS_PANEL_EVENTS.show:
         if (!this.listenersRegistered && event.target == this.view) {
           this.panelMultiView = this.view.panelMultiView;
-          this._populate(event);
+          this._populate();
           this.gBrowser.translateTabContextMenu();
         }
         break;
@@ -487,8 +487,8 @@ export class TabsPanel extends TabsListBase {
     }
   }
 
-  _populate(event) {
-    super._populate(event);
+  _populate() {
+    super._populate();
 
     // The loading throbber can't be set until the toolbarbutton is rendered,
     // so set the image attributes again now that the elements are in the DOM.

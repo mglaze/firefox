@@ -243,14 +243,11 @@ interface GleanImpl {
     clickMilestoneMessage: GleanEventNoExtras;
     clickProtectionspopupCfr: GleanEventWithExtras<{ message?: string, value?: string }>;
     clickSettings: GleanEventNoExtras;
-    clickSmartblockembedsToggle: GleanEventWithExtras<{ isBlock?: string|boolean, openingReason?: string }>;
     clickSocial: GleanEventNoExtras;
     clickSubviewSettings: GleanEventWithExtras<{ value?: string }>;
     clickTrackers: GleanEventNoExtras;
-    closeProtectionsPopup: GleanEventWithExtras<{ openingReason?: string, smartblockToggleClicked?: string|boolean }>;
     openProtectionsPopup: GleanEventWithExtras<{ openingReason?: string, smartblockEmbedTogglesShown?: string|boolean }>;
     openProtectionspopupCfr: GleanEventWithExtras<{ message?: string, value?: string }>;
-    smartblockembedsShown: GleanCounter;
   }
 
   smartWindow: {
@@ -1354,6 +1351,7 @@ interface GleanImpl {
     startupOnloadInitialWindow: GleanTimingDistribution;
     startupSessionAutoRestored: GleanEventWithExtras<{ new_tab_action?: string }>;
     startupSessionAvailability: GleanEventWithExtras<{ clean?: string, clean_backup?: string, format?: string, origin?: string, recovery?: string, recovery_backup?: string, restarted_by_os?: string|boolean, resume_from_crash?: string|boolean, resume_session_once?: string|boolean, resuming_after_os_restart?: string|boolean, startup_page_is_resume?: string|boolean, upgrade_backup?: string }>;
+    startupSessionDecision: GleanEventWithExtras<{ action?: string, init_error?: string, interstitial_reason?: string, permanent_private?: string|boolean, previous_session_crashed?: string|boolean, resume_reason?: string, session_type?: string }>;
     startupTimeline: Record<"sessionRestoreInitialized"|"sessionRestoreRestoring", GleanQuantity>;
     windowFeaturesMismatchIgnored: GleanEventWithExtras<{ entry_point?: string, existing_features?: string, requested_features?: string }>;
     writeFile: GleanTimingDistribution;

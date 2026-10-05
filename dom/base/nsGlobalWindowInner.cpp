@@ -2168,15 +2168,7 @@ void nsGlobalWindowInner::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
     case eMouseUp:
     case eDragEnd:
       if (aVisitor.mEvent->IsTrusted()) {
-        sMouseDown = false;
-        if (sDragServiceDisabled) {
-          nsCOMPtr<nsIDragService> ds =
-              do_GetService("@mozilla.org/widget/dragservice;1");
-          if (ds) {
-            sDragServiceDisabled = false;
-            ds->Unsuppress();
-          }
-        }
+        MouseButtonReleased();
       }
       break;
     default:
@@ -2184,6 +2176,22 @@ void nsGlobalWindowInner::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
   }
 
   aVisitor.SetParentTarget(GetParentTarget(), true);
+}
+
+/* static */
+void nsGlobalWindowInner::MouseButtonReleased() {
+  if (!sMouseDown) {
+    return;
+  }
+  sMouseDown = false;
+  if (sDragServiceDisabled) {
+    nsCOMPtr<nsIDragService> ds =
+        do_GetService("@mozilla.org/widget/dragservice;1");
+    if (ds) {
+      sDragServiceDisabled = false;
+      ds->Unsuppress();
+    }
+  }
 }
 
 // Editor library types for about:blank compat workaround

@@ -1013,6 +1013,18 @@ class HomeScreenRobot(private val composeTestRule: ComposeTestRule) {
             return BrowserRobot.Transition(composeTestRule)
         }
 
+        fun openFirstTopSiteTab(interact: BrowserRobot.() -> Unit): BrowserRobot.Transition {
+            Log.i(TAG, "openFirstTopSiteTab: Trying to scroll to first top site item")
+            composeTestRule.firstTopSiteItem().performScrollTo()
+            Log.i(TAG, "openFirstTopSiteTab: Scrolled to first top site item")
+            Log.i(TAG, "openFirstTopSiteTab: Trying to click first top site item")
+            composeTestRule.firstTopSiteItem().performClick()
+            Log.i(TAG, "openFirstTopSiteTab: Clicked first top site item")
+
+            BrowserRobot(composeTestRule).interact()
+            return BrowserRobot.Transition(composeTestRule)
+        }
+
         fun editTopSite(
             title: String,
             url: String,
@@ -1261,6 +1273,8 @@ private fun firefoxOptionSetAsDefaultBrowserDialogRadioButton() =
             index = 2,
         )
         .getFromParent(UiSelector().className("android.widget.LinearLayout").index(1))
+
+private fun ComposeTestRule.firstTopSiteItem() = onAllNodesWithTag(TopSitesTestTag.TOP_SITE_ITEM_ROOT).onFirst()
 
 private fun ComposeTestRule.topSiteItem(title: String) =
     onAllNodesWithTag(TopSitesTestTag.TOP_SITE_ITEM_ROOT).filter(hasAnyChild(hasText(title))).onFirst()

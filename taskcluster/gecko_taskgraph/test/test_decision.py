@@ -4,20 +4,25 @@
 
 
 import os
+import pathlib
 import shutil
 import tempfile
 from unittest.mock import MagicMock, patch
 
+import jsonschema
 import pytest
 from mozunit import MockedOpen, main
 from taskgraph.util import json
 from taskgraph.util.yaml import load_yaml
 
-from gecko_taskgraph import decision
+from gecko_taskgraph import GECKO, decision
 from gecko_taskgraph.parameters import register_parameters
 
 FAKE_GRAPH_CONFIG = {"product-dir": "browser", "taskgraph": {}}
 TTC_FILE = os.path.join(os.getcwd(), "try_task_config.json")
+PERFHERDER_SCHEMA_PATH = pathlib.Path(
+    GECKO, "testing", "performance", "common", "performance-artifact-schema.json"
+)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -351,6 +356,54 @@ def test_source_bundle_not_hg(bundle_env):
         pass
 
     assert not bundle_path.exists()
+
+
+@pytest.mark.parametrize(
+    "trust_domain,expected_suite_extra,forbidden_keys",
+    (
+        pytest.param(
+            "gecko",
+            {
+                "monitor": True,
+                "alertNotifyEmails": ["release+gecko-decision-alerts@mozilla.com"],
+            },
+            ["shouldAlert"],
+            id="gecko",
+        ),
+        pytest.param(
+            "comm",
+            {"shouldAlert": False},
+            ["monitor", "alertNotifyEmails"],
+            id="comm",
+        ),
+    ),
+)
+def test_build_decision_perfherder_data(
+    trust_domain, expected_suite_extra, forbidden_keys
+):
+    params_time = 1.5
+    taskgraph_time = 2.5
+
+    data = decision.build_decision_perfherder_data(
+        trust_domain, params_time, taskgraph_time
+    )
+
+    assert data["framework"] == {"name": "build_metrics"}
+    suite = data["suites"][0]
+    assert suite["name"] == "decision"
+    assert suite["value"] == params_time + taskgraph_time
+    assert suite["subtests"] == [
+        {"name": "parameters", "value": params_time, "lowerIsBetter": True},
+        {"name": "taskgraph", "value": taskgraph_time, "lowerIsBetter": True},
+    ]
+    for key, value in expected_suite_extra.items():
+        assert suite[key] == value
+    for key in forbidden_keys:
+        assert key not in suite
+
+    with open(PERFHERDER_SCHEMA_PATH) as f:
+        schema = json.load(f)
+    jsonschema.validate(data, schema)
 
 
 if __name__ == "__main__":

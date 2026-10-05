@@ -837,12 +837,18 @@ struct JSStdName {
 
 static const JSStdName* LookupStdName(const JSAtomState& names, JSAtom* name,
                                       const JSStdName* table) {
+  // Every name in the table is a permanent atom.
+  if (!name->isPermanent()) {
+    return nullptr;
+  }
+
   for (unsigned i = 0; !table[i].isSentinel(); i++) {
     if (table[i].isDummy()) {
       continue;
     }
     JSAtom* atom = AtomStateOffsetToName(names, table[i].atomOffset);
     MOZ_ASSERT(atom);
+    MOZ_ASSERT(atom->isPermanent());
     if (name == atom) {
       return &table[i];
     }
@@ -2515,6 +2521,8 @@ void JS::TransitiveCompileOptions::copyPODTransitiveOptions(
   sourceIsLazy = rhs.sourceIsLazy;
   allowHTMLComments = rhs.allowHTMLComments;
   nonSyntacticScope = rhs.nonSyntacticScope;
+  allowRedeclaringExistingLexicalBinding =
+      rhs.allowRedeclaringExistingLexicalBinding;
 
   topLevelAwait = rhs.topLevelAwait;
 

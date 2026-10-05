@@ -1149,16 +1149,68 @@ bool MWasmTernarySimd128::specializeBitselectConstantMaskAsShuffle(
 bool MWasmTernarySimd128::canRelaxBitselect() { return false; }
 
 bool MWasmBinarySimd128::canPmaddubsw() { return false; }
+
+bool MWasmBinarySimd128::canTestBits() { return false; }
 #endif
 
 bool MWasmBinarySimd128::specializeForConstantRhs() {
-  // Probably many we want to do here
-  return false;
+  // The integer compares have splat-immediate encodings; other constants are
+  // loaded into the scratch register.
+  switch (simdOp()) {
+    case wasm::SimdOp::I8x16Eq:
+    case wasm::SimdOp::I8x16Ne:
+    case wasm::SimdOp::I8x16LtS:
+    case wasm::SimdOp::I8x16LtU:
+    case wasm::SimdOp::I8x16GtS:
+    case wasm::SimdOp::I8x16GtU:
+    case wasm::SimdOp::I8x16LeS:
+    case wasm::SimdOp::I8x16LeU:
+    case wasm::SimdOp::I8x16GeS:
+    case wasm::SimdOp::I8x16GeU:
+    case wasm::SimdOp::I16x8Eq:
+    case wasm::SimdOp::I16x8Ne:
+    case wasm::SimdOp::I16x8LtS:
+    case wasm::SimdOp::I16x8LtU:
+    case wasm::SimdOp::I16x8GtS:
+    case wasm::SimdOp::I16x8GtU:
+    case wasm::SimdOp::I16x8LeS:
+    case wasm::SimdOp::I16x8LeU:
+    case wasm::SimdOp::I16x8GeS:
+    case wasm::SimdOp::I16x8GeU:
+    case wasm::SimdOp::I32x4Eq:
+    case wasm::SimdOp::I32x4Ne:
+    case wasm::SimdOp::I32x4LtS:
+    case wasm::SimdOp::I32x4LtU:
+    case wasm::SimdOp::I32x4GtS:
+    case wasm::SimdOp::I32x4GtU:
+    case wasm::SimdOp::I32x4LeS:
+    case wasm::SimdOp::I32x4LeU:
+    case wasm::SimdOp::I32x4GeS:
+    case wasm::SimdOp::I32x4GeU:
+    case wasm::SimdOp::I64x2Eq:
+    case wasm::SimdOp::I64x2Ne:
+    case wasm::SimdOp::I64x2LtS:
+    case wasm::SimdOp::I64x2GtS:
+    case wasm::SimdOp::I64x2LeS:
+    case wasm::SimdOp::I64x2GeS:
+      return true;
+    default:
+      return false;
+  }
 }
 
 void LIRGenerator::visitWasmBinarySimd128WithConstant(
     MWasmBinarySimd128WithConstant* ins) {
-  MOZ_CRASH("binary SIMD with constant NYI");
+#ifdef ENABLE_JIT_SIMD
+  MOZ_ASSERT(ins->lhs()->type() == MIRType::Simd128);
+  MOZ_ASSERT(ins->type() == MIRType::Simd128);
+
+  auto* lir = new (alloc()) LWasmBinarySimd128WithConstant(
+      useRegisterAtStart(ins->lhs()), LDefinition::BogusTemp(), ins->rhs());
+  define(lir, ins);
+#else
+  MOZ_CRASH("No SIMD");
+#endif
 }
 
 void LIRGenerator::visitWasmShiftSimd128(MWasmShiftSimd128* ins) {

@@ -7543,6 +7543,14 @@
   mirror: always
 #endif
 
+#ifdef MOZ_WIDGET_GTK
+# Whether to use zero-copy GPU import for DMABuf video frames in remote canvas drawImage.
+- name: gfx.canvas.remote.use-draw-image-fast-path-dmabuf
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+#endif
+
 - name: gfx.canvas.remote.recycle-used-data-surface
   type: RelaxedAtomicBool
   value: true
@@ -8751,13 +8759,6 @@
   value: true
 #endif
 
-#ifdef XP_MACOSX
-- name: gfx.webrender.enable-client-storage
-  type: bool
-  value: false
-  mirror: once
-#endif
-
  # Width of WebRender tile size
 - name: gfx.webrender.picture-tile-width
   type: RelaxedAtomicInt32
@@ -9197,14 +9198,6 @@
 - name: image.mem.max_legal_imgframe_size_kb
   type: RelaxedAtomicInt32
   value: -1
-  mirror: always
-
-# If true, then the HTMLImageElement naturalWidth and naturalHeight APIs will
-# fall back to the default concrete object size (300x150) for images that lack
-# a natural width and/or height.
-- name: image.natural-size-fallback.enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # Whether we record SVG images as blobs or not.
@@ -10794,16 +10787,6 @@
   mirror: always
   rust: true
 
-# Whether to enable generalized CSS Attr Support. If this pref is set to false
-# we treat attr as a regular function with support only for the `content` css
-# property. If it is set to true, attr is parsed as a subtitution function.
-# https://drafts.csswg.org/css-values-5/#attr-notation
-- name: layout.css.attr.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Whether to enable CSS @custom-media
 # https://drafts.csswg.org/mediaqueries-5/
 # TODO(emilio): Needs more tests before enabling.
@@ -11031,13 +11014,6 @@
   mirror: always
   rust: true
 
-# Whether alt text in content is enabled.
-- name: layout.css.content.alt-text.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Should stray control characters be rendered visibly?
 - name: layout.css.control-characters.visible
   type: RelaxedAtomicBool
@@ -11133,27 +11109,12 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
-# Is support for CSS masonry layout enabled?
-- name: layout.css.grid-template-masonry-value.enabled
-  type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) || defined(MOZ_THUNDERBIRD)
-  value: true
-#else
-  value: false
-#endif
-  mirror: always
-  rust: true
-
 # Enable the new css-grid-3 specification of grid-lanes. Always disabled for
 # Thunderbird, because it is using an older syntax.
 # https://drafts.csswg.org/css-grid-3/
 - name: layout.css.display-grid-lanes.enabled
   type: RelaxedAtomicBool
-#if defined(MOZ_THUNDERBIRD)
-  value: false
-#else
   value: @IS_NIGHTLY_BUILD@
-#endif
   mirror: always
   rust: true
 
@@ -11357,7 +11318,7 @@
 # also include animation-timeline property.
 - name: layout.css.scroll-driven-animations.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -16465,7 +16426,7 @@
 # events (e.g. application-background on Android) instead of being torn down.
 - name: network.trr.preserve_on_background
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # When true, the TRR transaction gets marked and runnables
@@ -16764,6 +16725,13 @@
   value: true
   mirror: always
 
+# Retry requests without HTTP/3 when the server closes an established HTTP/3
+# connection with an error before any part of the response was received.
+- name: network.http.http3.fallback_to_h2_on_protocol_error
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Maximum number of UDP segments in a single UDP GSO send. Noop if
 # network.http.http3.use_nspr_for_io is true.
 - name: network.http.http3.max_gso_segments
@@ -17015,7 +16983,7 @@
 # When true, allow HTTP/3 first behavior when enabled via remote settings
 - name: network.trr.allow_default_http3_first
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # When true, a http request will be upgraded to https when HTTPS RR is
@@ -17481,11 +17449,7 @@
 # Only effective on Linux/Android (TCP_USER_TIMEOUT, kernel 2.6.37+).
 - name: network.tcp.user_timeout
   type: RelaxedAtomicInt32
-#ifdef NIGHTLY_BUILD
   value: 30
-#else
-  value: 0
-#endif
   mirror: always
 
 # Maximum unsent data (bytes) in the kernel send buffer before a TCP socket
@@ -17493,11 +17457,7 @@
 # connections. 0 = disabled (kernel default). Effective on Linux 4.6+ and macOS.
 - name: network.tcp.notsent_lowat
   type: RelaxedAtomicInt32
-#ifdef NIGHTLY_BUILD
   value: 32768
-#else
-  value: 0
-#endif
   mirror: always
 
 # Whether to redirect a failing request to an essential domain
@@ -19747,6 +19707,12 @@
   mirror: always
 
 - name: telemetry.fog.test.decelerate_early_events
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
+- name: telemetry.fog.enable_store_submitted_pings
   type: RelaxedAtomicBool
   value: false
   mirror: always

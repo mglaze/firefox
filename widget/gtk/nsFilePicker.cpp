@@ -808,7 +808,7 @@ already_AddRefed<nsIFile> nsFilePicker::GetDefaultPath() {
     sPrevDisplayDirectory->Clone(getter_AddRefs(defaultPath));
   }
 
-  if (!defaultPath || !IsReadableDirectory(*defaultPath)) {
+  if (!defaultPath || !IsPotentiallyReadableDirectory(*defaultPath)) {
     return nullptr;
   }
 

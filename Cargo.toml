@@ -167,7 +167,7 @@ uniffi_pipeline = "0.32"
 # Shared across multiple application-services consumers.
 rusqlite = "0.37"
 # Shared across multiple glean consumers.
-glean = "=70.2.0"
+glean = "=70.2.1"
 
 # Explicitly specify what our profiles use.  The opt-level setting here is
 # a total fiction; see the setup of MOZ_RUST_DEFAULT_FLAGS for what the
@@ -227,10 +227,6 @@ mozilla-central-workspace-hack = { path = "build/workspace-hack" }
 # windows-targets replacement. It avoids the large dependencies of the original
 # crate, which we don't really need as we require MSVC anyways.
 windows-targets = { path = "build/rust/windows-targets" }
-
-# windows-link replacement that doesn't use raw-dylibs, which have problems on
-# the i686-pc-windows-gnu target.
-windows-link = { path = "build/rust/windows-link" }
 
 # Patch windows to use a non-vendored local copy of the crate.
 windows = { path = "build/rust/windows" }

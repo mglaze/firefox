@@ -207,8 +207,6 @@ allowed_warnings:
     - "devtools-user/tips/index\\.md:.*: WARNING: unknown document"
     - "devtools-user/tools_toolbox/index\\.md:.*: WARNING: unknown document"
     - "devtools-user/web_console/console_messages/index\\.md:.*: ERROR: Undefined substitution referenced"
-    # mdn-imported content with image width values that confuse the parser.
-    - "contributing/.*\\.md:.*: WARNING: undefined label"
     - "permissions\\.py:.*: ERROR: Unknown target name: \"server-locations\\.txt\""
     - "toolkit/components/telemetry/data/install-ping\\.md:.*: ERROR: Document or section may not begin with a transition"
 exclude_patterns:

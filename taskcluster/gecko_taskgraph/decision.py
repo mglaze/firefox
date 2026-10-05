@@ -198,6 +198,27 @@ def full_task_graph_to_manifests_by_task(full_task_json):
     return manifests_by_task
 
 
+def build_decision_perfherder_data(trust_domain, params_time, taskgraph_time):
+    suite = {
+        "name": "decision",
+        "value": params_time + taskgraph_time,
+        "lowerIsBetter": True,
+        "subtests": [
+            {"name": "parameters", "value": params_time, "lowerIsBetter": True},
+            {"name": "taskgraph", "value": taskgraph_time, "lowerIsBetter": True},
+        ],
+    }
+    if trust_domain == "gecko":
+        suite["monitor"] = True
+        suite["alertNotifyEmails"] = ["release+gecko-decision-alerts@mozilla.com"]
+    else:
+        suite["shouldAlert"] = False
+    return {
+        "framework": {"name": "build_metrics"},
+        "suites": [suite],
+    }
+
+
 def taskgraph_decision(options, parameters):
     """
     Run the decision task.  This function implements `mach taskgraph decision`,
@@ -259,9 +280,6 @@ def taskgraph_decision(options, parameters):
         # data generated in a subprocess which we do not have access to here
         # see https://bugzilla.mozilla.org/show_bug.cgi?id=1989038 for additional
         # details
-
-        # this is just a test to check whether the from_json() function is working
-        _, _ = TaskGraph.from_json(full_task_json)
 
         # write out the target task set to allow reproducing this as input
         write_artifact("target-tasks.json", list(tgg.target_task_set.tasks.keys()))

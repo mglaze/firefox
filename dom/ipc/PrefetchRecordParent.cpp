@@ -455,6 +455,7 @@ PrefetchRecordParent::AsyncOnChannelRedirect(
     return NS_OK;
   }
   AppendRedirectChainEntry(newURI);
+  ConfigureSecPurpose(aNewChannel);
   aCb->OnRedirectVerifyCallback(NS_OK);
   return NS_OK;
 }

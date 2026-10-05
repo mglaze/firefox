@@ -21633,11 +21633,11 @@ already_AddRefed<Document> Document::ParseHTMLUnsafe(
 
   // Step 5. Parse HTML from a string given document, compliantHTML,
   // sanitizerConfig and false.
-  // TODO(bug 1960845): Investigate the behavior around <noscript> with
-  // parseHTML
+  // The document has no browsing context, so scripting is disabled and
+  // <noscript> content is parsed as markup.
   aError = nsContentUtils::ParseDocumentHTML(
       *compliantString, doc,
-      /* aScriptingEnabledForNoscriptParsing */ sanitize,
+      /* aScriptingEnabledForNoscriptParsing */ false,
       sanitizeWhileParsing ? sanitizer.get() : nullptr, /* aSafe */ false);
   if (aError.Failed()) {
     return nullptr;
@@ -21684,10 +21684,10 @@ already_AddRefed<Document> Document::ParseHTML(GlobalObject& aGlobal,
 
   // Step 4. Parse HTML from a string given document, html, sanitizerConfig
   // and true.
-  // TODO(bug 1960845): Investigate the behavior around <noscript> with
-  // parseHTML
+  // The document has no browsing context, so scripting is disabled and
+  // <noscript> content is parsed as markup.
   aError = nsContentUtils::ParseDocumentHTML(
-      aHTML, doc, /* aScriptingEnabledForNoscriptParsing */ true,
+      aHTML, doc, /* aScriptingEnabledForNoscriptParsing */ false,
       sanitizeWhileParsing ? sanitizer.get() : nullptr, /* aSafe */ true);
   if (aError.Failed()) {
     return nullptr;

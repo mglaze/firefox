@@ -405,7 +405,13 @@ void Http3Session::Shutdown() {
         // Connection has not been started yet. We can restart it.
         stream->Transaction()->DoNotRemoveAltSvc();
       }
-      stream->Close(NS_ERROR_NET_RESET);
+      stream->Close(
+          mError == NS_ERROR_NET_HTTP3_PROTOCOL_ERROR &&
+                  !mConnInfo->IsHttp3ProxyConnection() &&
+                  StaticPrefs::
+                      network_http_http3_fallback_to_h2_on_protocol_error()
+              ? NS_ERROR_NET_HTTP3_PROTOCOL_ERROR
+              : NS_ERROR_NET_RESET);
     } else if (stream->GetHttp3Stream() &&
                stream->GetHttp3Stream()->RecvdData()) {
       stream->Close(NS_ERROR_NET_PARTIAL_TRANSFER);

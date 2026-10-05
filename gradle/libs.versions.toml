@@ -1,7 +1,7 @@
 [versions]
 # AGP
-android-gradle-plugin = "9.4.0" # Keep lint version in sync
-android-lint = "32.4.0"
+android-gradle-plugin = "9.4.1" # Keep lint version in sync
+android-lint = "32.4.1"
 
 # Kotlin
 coroutines = "1.11.0"
@@ -88,7 +88,7 @@ ktfmt = "0.64"
 spotless = "8.10.2"
 
 # Mozilla
-glean = "70.2.0"
+glean = "70.2.1"
 
 # Testing libraries
 androidx-test = "1.7.0"

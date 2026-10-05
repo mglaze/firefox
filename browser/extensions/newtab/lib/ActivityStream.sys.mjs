@@ -168,6 +168,7 @@ const LOCALE_SECTIONS_CONFIG =
   "browser.newtabpage.activity-stream.discoverystream.sections.locale-content-config";
 
 const ACTIVITY_STREAM_PREF_BRANCH = "browser.newtabpage.activity-stream.";
+const PREF_MARKET_GATE_ENABLED = `${ACTIVITY_STREAM_PREF_BRANCH}widgets.marketGate.enabled`;
 
 const PREF_SHOULD_AS_INITIALIZE_FEEDS =
   "browser.newtabpage.activity-stream.testing.shouldInitializeFeeds";
@@ -526,6 +527,10 @@ function skipsNightlyDefault(prefKey) {
   );
 }
 
+function marketGateEnabled() {
+  return Services.prefs.getBoolPref(PREF_MARKET_GATE_ENABLED, false);
+}
+
 /**
  * Gates a pref's default on the `.region-config`, `.region-block`,
  * `.locale-config` and `.locale-block` prefs sitting alongside it, e.g.
@@ -537,6 +542,10 @@ function skipsNightlyDefault(prefKey) {
 function marketGate(prefKey) {
   const base = ACTIVITY_STREAM_PREF_BRANCH + prefKey.replace(/\.enabled$/, "");
   return ({ geo, locale }) => {
+    // Gating off restores the defaults from before it existed.
+    if (!marketGateEnabled()) {
+      return !prefKey.startsWith("widgets.system.");
+    }
     // Nightly gets every widget in every market so the team sees the whole
     // feature, which is why no widget pref carries an #ifdef in firefox.js.
     if (
@@ -650,14 +659,6 @@ export const PREFS_CONFIG = new Map([
     {
       title: "Displays Top Sites on the New Tab Page",
       value: PREF_DEFAULT_VALUE_TOPSITES_ENABLED,
-    },
-  ],
-  [
-    "hideTopSitesTitle",
-    {
-      title:
-        "Hide the top sites section's title, including the section and collapse icons",
-      value: false,
     },
   ],
   [
@@ -1536,6 +1537,14 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "widgets.marketGate.enabled",
+    {
+      title:
+        "Applies widget region and locale gating. When false, widgets keep the defaults from before gating",
+      value: false,
+    },
+  ],
+  [
     "widgets.marketGate.enforceOnNightly",
     {
       title:
@@ -1790,14 +1799,14 @@ export const PREFS_CONFIG = new Map([
     {
       title: "Enables the privacy widget",
       // Off everywhere. To release organically: add locale-config to firefox.js, switch to marketGate.
-      value: false,
+      getValue: () => !marketGateEnabled(),
     },
   ],
   [
     "widgets.crossword.enabled",
     {
       title: "Enables the crossword widget",
-      value: false,
+      getValue: () => !marketGateEnabled(),
     },
   ],
   [
@@ -1813,7 +1822,7 @@ export const PREFS_CONFIG = new Map([
     {
       title: "Enables the stocks widget",
       // Off everywhere. To release organically: add locale-config to firefox.js, switch to marketGate.
-      value: false,
+      getValue: () => !marketGateEnabled(),
     },
   ],
   [
@@ -1829,7 +1838,7 @@ export const PREFS_CONFIG = new Map([
     {
       title: "Enables the recent searches widget",
       // Off everywhere. To release organically: add locale-config to firefox.js, switch to marketGate.
-      value: false,
+      getValue: () => !marketGateEnabled(),
     },
   ],
   [
@@ -2396,7 +2405,7 @@ export const PREFS_CONFIG = new Map([
     "pageLayouts.variant",
     {
       title:
-        "Name of the active newtab page layout variant, for layout experimentation. One of nova-full-width, side-by-side-content-lead, side-by-side-widgets-lead, side-by-side-content-lead-five, side-by-side-widgets-lead-five, spaces-buttons-top, spaces-buttons-bottom, spaces-thematic-v1, auto-minimize-widgets, widgets-ad-large. The -five variants reach five card columns counting the widgets column, the others four. The spaces variants split the band into separately-navigable panels; the buttons- ones differ only in where the segmented control sits, while spaces-thematic-v1 names its panels for interests and puts the side-by-side pair inside each one, configured by pageLayouts.spacesConfig. The auto-minimize-widgets variant collapses the widgets section to its title row shortly after load. The widgets-ad-large variant puts a large sponsored card at the end of the first widget row. At one card column it sits second instead. Overridden by trainhopConfig.pageLayouts.variant.",
+        "Name of the active newtab page layout variant, for layout experimentation. One of nova-full-width, side-by-side-content-lead, side-by-side-widgets-lead, side-by-side-content-lead-five, side-by-side-widgets-lead-five, spaces-buttons-top, spaces-buttons-bottom, spaces-thematic-v1, spaces-floating-arrows, auto-minimize-widgets, widgets-ad-large. The -five variants reach five card columns counting the widgets column, the others four. The spaces variants split the band into separately-navigable panels; the buttons- ones differ only in where the segmented control sits, spaces-floating-arrows replaces the segmented control with an arrow at each edge that has a space beyond it, while spaces-thematic-v1 names its panels for interests and puts the side-by-side pair inside each one, configured by pageLayouts.spacesConfig. The auto-minimize-widgets variant collapses the widgets section to its title row shortly after load. The widgets-ad-large variant puts a large sponsored card at the end of the first widget row. At one card column it sits second instead. Overridden by trainhopConfig.pageLayouts.variant.",
       value: "nova-full-width",
     },
   ],
@@ -2406,6 +2415,14 @@ export const PREFS_CONFIG = new Map([
       title:
         "JSON config for the spaces-thematic-v1 layout variant: an `order` array of space ids, a `default` id that the page opens on and that also takes any section or widget no other space claims, and a `spaces` object mapping each id to a `label`, an `icon` chrome:// URL, and `sections` and `widgets` arrays. Defaults to the config this build ships; clearing the user value returns to it. A config that cannot render turns the layout off rather than partly applying; nothing is merged with the default. Overridden by trainhopConfig.spaces.",
       value: JSON.stringify(DEFAULT_SPACES_CONFIG),
+    },
+  ],
+  [
+    "pageLayouts.spacesOrder",
+    {
+      title:
+        "Comma-separated order of the spaces in the spaces-buttons-top, spaces-buttons-bottom and spaces-floating-arrows layout variants, from stories, widgets and activity. A space left out is not shown; empty means stories,widgets,activity.",
+      value: "",
     },
   ],
   // @experiment(remove) { bug 2066527 }
@@ -2700,6 +2717,7 @@ export class ActivityStream {
     this._defaultPrefs.init();
     Services.obs.addObserver(this, "intl:app-locales-changed");
     Services.prefs.addObserver(PREF_IMAGE_PROXY_ENABLED, this);
+    Services.prefs.addObserver(PREF_MARKET_GATE_ENABLED, this);
     lazy.NewTabActorRegistry.init();
 
     // Hook up the store and let all feeds and pages initialize
@@ -2877,6 +2895,7 @@ export class ActivityStream {
 
     Services.obs.removeObserver(this, "intl:app-locales-changed");
     Services.prefs.removeObserver(PREF_IMAGE_PROXY_ENABLED, this);
+    Services.prefs.removeObserver(PREF_MARKET_GATE_ENABLED, this);
 
     this.store.uninit();
     this.unregisterNetworkProxy();
@@ -2943,6 +2962,9 @@ export class ActivityStream {
         this._updateDynamicPrefs();
         break;
       case "nsPref:changed":
+        if (data === PREF_MARKET_GATE_ENABLED) {
+          this._updateDynamicPrefs();
+        }
         if (data === PREF_IMAGE_PROXY_ENABLED) {
           const enabled = Services.prefs.getBoolPref(
             PREF_IMAGE_PROXY_ENABLED,

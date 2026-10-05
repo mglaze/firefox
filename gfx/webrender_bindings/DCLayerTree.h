@@ -34,6 +34,7 @@ struct ID3D11VideoProcessor;
 struct ID3D11VideoProcessorEnumerator;
 struct ID3D11VideoProcessorOutputView;
 struct IDCompositionColorMatrixEffect;
+struct IDCompositionDynamicTexture;
 struct IDCompositionFilterEffect;
 struct IDCompositionTableTransferEffect;
 struct IDCompositionTexture;
@@ -149,7 +150,6 @@ class DCLayerTree {
   void MaybeCommit();
   void WaitForCommitCompletion();
 
-  bool UseCompositor() const;
   bool UseLayerCompositor() const;
   void DisableNativeCompositor();
   bool EnableAsyncScreenshot();
@@ -228,11 +228,7 @@ class DCLayerTree {
   void ReleaseNativeCompositorResources();
   layers::OverlayInfo GetOverlayInfo();
 
-  enum class WebRenderOsCompositorKind {
-    LayerCompositor,
-  };
-
-  Maybe<WebRenderOsCompositorKind> mCompositorKind;
+  bool mUseLayerCompositor = false;
   bool mEnableAsyncScreenshot = false;
   bool mEnableAsyncScreenshotInNextFrame = false;
   int mAsyncScreenshotLastFrameUsed = 0;
@@ -438,9 +434,12 @@ class DCLayerDCompositionTexture : public DCLayerSurface {
     RefPtr<ID3D11Texture2D> mTexture;
     RefPtr<IDCompositionTexture> mDCompositionTexture;
     EGLSurface mEGLSurface;
+    bool mHasBeenPresented = false;
   };
 
   bool AllocateTextures();
+  UniquePtr<TextureHolder> AllocateTexture();
+  void DestroyTexture(UniquePtr<TextureHolder> aHolder);
   void DestroyTextures();
   UniquePtr<TextureHolder> GetNextTexture();
   void UpdateCurrentTexture();
@@ -450,6 +449,10 @@ class DCLayerDCompositionTexture : public DCLayerSurface {
 
   UniquePtr<TextureHolder> mCurrentTextureHolder;
   UniquePtr<TextureHolder> mPresentingTextureHolder;
+
+  // Kept across buffer rotations and resizes. The previous texture stays
+  // displayed until the next successful present replaces it.
+  RefPtr<IDCompositionDynamicTexture> mDCompositionDynamicTexture;
 };
 
 class DCSwapChain : public DCLayerSurface {

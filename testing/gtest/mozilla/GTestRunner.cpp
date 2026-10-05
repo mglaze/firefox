@@ -60,7 +60,7 @@ class MozillaPrinter : public EmptyTestEventListener {
                    ",\"source\":\"gtest\",\"name\":\"gtest\",\"tests\":{}");
   }
 
-  virtual void OnTestProgramEnd(const UnitTest& aUnitTest) override {
+  virtual void OnTestProgramEnd(const UnitTest& /*aUnitTest*/) override {
     MOZ_LOG_ACTION("suite_end", ",\"source\":\"gtest\"");
     if (mLogFile) {
       fclose(mLogFile);

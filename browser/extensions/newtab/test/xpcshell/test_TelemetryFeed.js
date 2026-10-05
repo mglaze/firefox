@@ -1789,7 +1789,7 @@ add_task(
       source: "newtab",
       position: 1,
       reporting_url: "https://test.reporting.net/",
-      advertiser: "adnoid ads",
+      advertiser_name: "adnoid ads",
     };
     const SESSION_ID = "decafc0ffee";
     sandbox.stub(instance.sessions, "get").returns({ session_id: SESSION_ID });
@@ -1822,7 +1822,7 @@ add_task(
 
     let data = {
       type: "click",
-      advertiser: "test advertiser",
+      advertiser_name: "test advertiser",
       tile_id: 42,
       source: "newtab",
       position: 0,
@@ -1903,7 +1903,7 @@ add_task(
         source: "newtab",
         position: 1,
         reporting_url: "https://test.reporting.net/",
-        advertiser: "adnoid ads",
+        advertiser_name: "adnoid ads",
       },
     });
 
@@ -1952,7 +1952,7 @@ add_task(
         source: "newtab",
         position: 1,
         reporting_url: "https://test.reporting.net/",
-        advertiser: "adnoid ads",
+        advertiser_name: "adnoid ads",
       },
     });
 
@@ -1981,8 +1981,8 @@ add_task(
       source: "newtab",
       position: 0,
       isPinned: false,
-      smartScores: { moo: 1 },
-      smartWeights: { moo: 0 },
+      smart_scores: { moo: 1 },
+      smart_weights: { moo: 0 },
     };
     const SESSION_ID = "decafc0ffee";
     sandbox.stub(instance.sessions, "get").returns({ session_id: SESSION_ID });
@@ -2069,7 +2069,7 @@ add_task(
         tile_id: 42,
         source: "newtab",
         position: 1,
-        advertiser: "adnoid ads",
+        advertiser_name: "adnoid ads",
         is_ad_eligible_position: true,
       },
     });
@@ -2135,8 +2135,8 @@ add_task(
       source: "newtab",
       position: 0,
       isPinned: false,
-      smartScores: { moo: 1 },
-      smartWeights: { moo: 0 },
+      smart_scores: { moo: 1 },
+      smart_weights: { moo: 0 },
     };
     const SESSION_ID = "decafc0ffee";
     sandbox.stub(instance.sessions, "get").returns({ session_id: SESSION_ID });
@@ -2797,7 +2797,7 @@ add_task(
       tile_id: 42,
       source: "newtab",
       position: 1,
-      advertiser: "adnoid ads",
+      advertiser_name: "adnoid ads",
     };
     const SESSION_ID = "decafc0ffee";
     sandbox.stub(instance.sessions, "get").returns({ session_id: SESSION_ID });
@@ -2838,7 +2838,7 @@ add_task(
       tile_id: 42,
       source: "newtab",
       position: 0,
-      advertiser: "test advertiser",
+      advertiser_name: "test advertiser",
     };
     const SESSION_ID = "decafc0ffee";
     sandbox.stub(instance.sessions, "get").returns({ session_id: SESSION_ID });
@@ -2917,7 +2917,7 @@ const SPONSORED_TOPSITES_TILE_ID_PATHS = [
           tile_id: 4567,
           source: "newtab",
           position: 1,
-          advertiser: "adnoid ads",
+          advertiser_name: "adnoid ads",
         },
       }),
   },
@@ -2931,7 +2931,7 @@ const SPONSORED_TOPSITES_TILE_ID_PATHS = [
           tile_id: 4567,
           source: "newtab",
           position: 0,
-          advertiser: "adnoid ads",
+          advertiser_name: "adnoid ads",
         },
       }),
   },
@@ -3837,7 +3837,7 @@ add_task(
       tile_id: 42,
       source: "newtab",
       position: 1,
-      advertiser: "test advertiser",
+      advertiser_name: "test advertiser",
       visible_topsites: 8,
       frecency_boosted: true,
     };
@@ -3857,7 +3857,7 @@ add_task(
       tile_id: 42,
       source: "newtab",
       position: 1,
-      advertiser: "test advertiser",
+      advertiser_name: "test advertiser",
       visible_topsites: 8,
       frecency_boosted: true,
     };
@@ -3918,7 +3918,7 @@ add_task(
       tile_id: 42,
       source: "newtab",
       position: 1,
-      advertiser: "test advertiser",
+      advertiser_name: "test advertiser",
       visible_topsites: 8,
       frecency_boosted: false,
     };

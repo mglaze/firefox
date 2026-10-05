@@ -82,6 +82,9 @@ function argsStub(fallback = () => undefined) {
   return fn;
 }
 
+const MARKET_GATE_PREF =
+  "browser.newtabpage.activity-stream.widgets.marketGate.enabled";
+
 const STORIES_REGION_LOCALE_PREF =
   "browser.newtabpage.activity-stream.discoverystream.stories-region-locale-config";
 
@@ -101,6 +104,11 @@ describe("ActivityStream", () => {
       "prefs",
       "urlFormatter",
     ]);
+    // Market gating ships off; turn it on so the gating tests exercise it.
+    services.prefs.getBoolPref = argsStub(
+      (_pref, defaultValue) => defaultValue
+    );
+    services.prefs.getBoolPref.whenCalledWith(MARKET_GATE_PREF).returns(true);
     region = { home: "US", REGION_TOPIC: "browser-region-updated" };
     nimbusFeatures = {
       pocketNewtab: { getVariable: argsStub() },
@@ -180,6 +188,12 @@ describe("ActivityStream", () => {
         "intl:app-locales-changed"
       );
     });
+    it("should call addObserver for the market gate pref", () => {
+      expect(services.prefs.addObserver).toHaveBeenCalledWith(
+        MARKET_GATE_PREF,
+        as
+      );
+    });
   });
   describe("#uninit", () => {
     beforeEach(() => {
@@ -205,6 +219,12 @@ describe("ActivityStream", () => {
       expect(services.obs.removeObserver).toHaveBeenCalledWith(
         as,
         "intl:app-locales-changed"
+      );
+    });
+    it("should call removeObserver for the market gate pref", () => {
+      expect(services.prefs.removeObserver).toHaveBeenCalledWith(
+        MARKET_GATE_PREF,
+        as
       );
     });
   });
@@ -677,6 +697,7 @@ describe("ActivityStream", () => {
       );
     });
     it("should be off everywhere by default", () => {
+      as._updateDynamicPrefs();
       expect(PREFS_CONFIG.get(AVAILABLE_PREF).value).toBe(false);
       expect(PREFS_CONFIG.get(ENABLED_PREF).value).toBe(false);
     });
@@ -750,6 +771,9 @@ describe("ActivityStream", () => {
         services.prefs.getBoolPref
           .whenCalledWith(`${BRANCH}widgets.marketGate.enforceOnNightly`, false)
           .returns(enforce);
+        services.prefs.getBoolPref
+          .whenCalledWith(MARKET_GATE_PREF)
+          .returns(true);
         try {
           region.home = "US";
           services.locale.appLocaleAsBCP47 = "de";
@@ -760,6 +784,81 @@ describe("ActivityStream", () => {
         }
       }
     );
+  });
+  describe("market gating off by default", () => {
+    const SYSTEM_PREFS = [
+      "widgets.system.enabled",
+      "widgets.system.lists.enabled",
+      "widgets.system.focusTimer.enabled",
+      "widgets.system.clocks.enabled",
+      "widgets.system.pictureOfTheDay.enabled",
+      "widgets.system.crossword.enabled",
+    ];
+    const USER_PREFS = [
+      "widgets.enabled",
+      "widgets.lists.enabled",
+      "widgets.focusTimer.enabled",
+      "widgets.clocks.enabled",
+      "widgets.pictureOfTheDay.enabled",
+      "widgets.privacy.enabled",
+      "widgets.crossword.enabled",
+      "widgets.stocks.enabled",
+      "widgets.recentSearches.enabled",
+    ];
+    beforeEach(() => {
+      services.locale.appLocaleAsBCP47 = "en-US";
+      services.prefs.getStringPref = argsStub(
+        (_pref, defaultValue) => defaultValue
+      );
+      services.prefs.getBoolPref = argsStub(
+        (_pref, defaultValue) => defaultValue
+      );
+      region.home = "US";
+    });
+    it.each([false, true])(
+      "should restore the pre-gating defaults (Nightly: %s)",
+      nightly => {
+        const wasNightly = globalThis.AppConstants.NIGHTLY_BUILD;
+        globalThis.AppConstants.NIGHTLY_BUILD = nightly;
+        try {
+          as._updateDynamicPrefs();
+          for (const pref of SYSTEM_PREFS) {
+            expect([pref, PREFS_CONFIG.get(pref).value]).toEqual([pref, false]);
+          }
+          for (const pref of USER_PREFS) {
+            expect([pref, PREFS_CONFIG.get(pref).value]).toEqual([pref, true]);
+          }
+        } finally {
+          globalThis.AppConstants.NIGHTLY_BUILD = wasNightly;
+        }
+      }
+    );
+    it("should rewrite the default branch each time the pref flips", () => {
+      let gated = true;
+      services.prefs.getBoolPref = jest.fn((pref, defaultValue) =>
+        pref === MARKET_GATE_PREF ? gated : defaultValue
+      );
+      const wasNightly = globalThis.AppConstants.NIGHTLY_BUILD;
+      globalThis.AppConstants.NIGHTLY_BUILD = false;
+      const defaults = () => [
+        as._defaultPrefs.get("widgets.system.lists.enabled"),
+        as._defaultPrefs.get("widgets.lists.enabled"),
+        as._defaultPrefs.get("widgets.privacy.enabled"),
+      ];
+      try {
+        as._updateDynamicPrefs();
+
+        gated = false;
+        as.observe(null, "nsPref:changed", MARKET_GATE_PREF);
+        expect(defaults()).toEqual([false, true, true]);
+
+        gated = true;
+        as.observe(null, "nsPref:changed", MARKET_GATE_PREF);
+        expect(defaults()).toEqual([true, false, false]);
+      } finally {
+        globalThis.AppConstants.NIGHTLY_BUILD = wasNightly;
+      }
+    });
   });
   describe("market gating on a host without the firefox.js prefs", () => {
     const BRANCH = "browser.newtabpage.activity-stream.";
@@ -825,6 +924,7 @@ describe("ActivityStream", () => {
   });
   describe("stocks widget defaults", () => {
     it("should be off everywhere by default", () => {
+      as._updateDynamicPrefs();
       expect(PREFS_CONFIG.get("widgets.stocks.enabled").value).toBe(false);
       expect(PREFS_CONFIG.get("widgets.system.stocks.enabled").value).toBe(
         false
@@ -833,6 +933,7 @@ describe("ActivityStream", () => {
   });
   describe("recent searches widget defaults", () => {
     it("should be off everywhere by default", () => {
+      as._updateDynamicPrefs();
       expect(PREFS_CONFIG.get("widgets.recentSearches.enabled").value).toBe(
         false
       );

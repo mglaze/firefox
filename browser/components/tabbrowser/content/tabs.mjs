@@ -138,7 +138,7 @@ export class MozTabbrowserTabs extends MozElements.TabsBase {
 
     this.boundObserve = (...args) => this.observe(...args);
     Services.prefs.addObserver("privacy.userContext", this.boundObserve);
-    this.observe(null, "nsPref:changed", "privacy.userContext.enabled");
+    this.observe(null, "nsPref:changed");
 
     document
       .getElementById("vertical-tabs-newtab-button")
@@ -1300,7 +1300,7 @@ export class MozTabbrowserTabs extends MozElements.TabsBase {
           } else {
             DynamicShortcutTooltip.nodeToTooltipMap[button.id] =
               "newTabButton.tooltip";
-            button.removeAttribute("context", "new-tab-button-popup");
+            button.removeAttribute("context");
           }
           // evict from tooltip cache
           DynamicShortcutTooltip.cache.delete(button.id);

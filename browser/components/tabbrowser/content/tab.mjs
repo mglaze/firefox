@@ -702,7 +702,7 @@ export class MozTabbrowserTab extends MozElements.MozTab {
     ) {
       if (this.activeMediaBlocked) {
         if (this.multiselected) {
-          gBrowser.resumeDelayedMediaOnMultiSelectedTabs(this);
+          gBrowser.resumeDelayedMediaOnMultiSelectedTabs();
         } else {
           this.resumeDelayedMedia();
         }

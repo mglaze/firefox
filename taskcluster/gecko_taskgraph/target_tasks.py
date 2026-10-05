@@ -1221,12 +1221,25 @@ def target_tasks_nightly_all(full_task_graph, parameters, graph_config):
 @register_target_task("appservices")
 def target_tasks_appservices(full_task_graph, parameters, graph_config):
     """Select the tasks that build app-services in tree and their tests"""
+
+    def counterpart_runs(task):
+        source = task.attributes.get("duplicate-of")
+        if source is None and "-appservices/" in task.label:
+            source = task.label.replace("-appservices/", "/")
+        counterpart = full_task_graph.tasks.get(source)
+        if counterpart is None:
+            return True
+        return bool(counterpart.attributes.get("run_on_projects"))
+
     return [
         l
         for l, t in full_task_graph.tasks.items()
-        if t.attributes.get("build_platform", "").endswith("-appservices")
-        or "-appservices/" in t.attributes.get("test_platform", "")
-        or t.kind.endswith("-appservices")
+        if (
+            t.attributes.get("build_platform", "").endswith("-appservices")
+            or "-appservices/" in t.attributes.get("test_platform", "")
+            or t.kind.endswith("-appservices")
+        )
+        and counterpart_runs(t)
     ]
 
 

@@ -1517,7 +1517,7 @@ modules:
         - Mitchell Hentges
         - *andi
       group: dev-builds
-      url: '{ref}`Build System`'
+      url: '{doc}`/build/buildsystem/index`'
       components:
         - Core::Build Config
       review_group: firefox-build-system-reviewers
@@ -1686,7 +1686,7 @@ modules:
         - Aria Beingessner
         - Kris Wright
       group: dev-platform
-      url: '{ref}`Crash Reporter`'
+      url: '{doc}`/toolkit/crashreporter/crashreporter/index`'
       components:
         - Toolkit::Crash Reporting
     owners:
@@ -1898,7 +1898,7 @@ modules:
       owners_emeritus:
         - Ehsan Akhgari
       group: dev-platform
-      url: '{ref}`Editor`'
+      url: '{doc}`/editor/index`'
       components:
         - 'Core::DOM: Editor'
     owners:
@@ -2117,7 +2117,7 @@ modules:
         - Jungshik Shin
         - Simon Montagu
       group: dev-i18n
-      url: '{ref}`Internationalization`'
+      url: '{doc}`/intl/index`'
       components:
         - Core::Internationalization
       review_group: platform-i18n-reviewers
@@ -2646,7 +2646,7 @@ modules:
         - Jason Duell
         - Junior Hsu
       group: dev-tech-network
-      url: '{ref}`Networking`'
+      url: '{doc}`/networking/index`'
       components:
         - Core::Networking
         - 'Core::Networking: Cache'
@@ -2723,7 +2723,7 @@ modules:
       owners_emeritus:
         - Wan-Teh Chang
       group: dev-tech-nspr
-      url: '{ref}`NSPR`'
+      url: '{doc}`/nspr/index`'
       components:
         - NSPR
     owners:
@@ -2966,7 +2966,7 @@ modules:
         - Franziskus Kiefer
         - Kevin Jacobs
       group: dev-tech-crypto
-      url: '{ref}`Network Security Services (NSS)`'
+      url: '{doc}`/security/nss/index`'
       components:
         - NSS
         - JSS
@@ -3222,7 +3222,7 @@ modules:
       # TODO: "the display list and layer related methods on nsIFrame and its subclasses"
     meta:
       group: dev-platform
-      url: '{ref}`Style system (CSS) & Layout`'
+      url: '{doc}`/layout/index`'
       components:
         - 'Core::Layout: Web Painting'
       owners_emeritus:
@@ -3580,7 +3580,7 @@ modules:
         - Simon Giesecke
         - *KrisWright
       group: dev-platform
-      url: '{ref}`XPCOM`'
+      url: '{doc}`/xpcom/index`'
       components:
         - Core::XPCOM
         - Toolkit::IOUtils and PathUtils
@@ -3630,7 +3630,7 @@ modules:
         - Mike Shaver
         - Josh 'timeless' Soref
       group: dev-tech-xpcom
-      url: '{ref}`XPIDL`'
+      url: '{doc}`/xpcom/xpidl`'
       review_group: xpcom-reviewers
     owners:
       - *nika
@@ -4756,7 +4756,7 @@ modules:
         - 'Testing :: Performance'
         - 'Testing :: mozperftest'
         - 'Testing :: Condprofile'
-      url: '{ref}`Performance Testing`'
+      url: '{doc}`/testing/perfdocs/index`'
       review_group: perftest-reviewers
   - machine_name: testing_reftest
     name: Reftest (+ jsreftest + crashtest)
@@ -4864,7 +4864,7 @@ modules:
           owners_emeritus:
             - Georg Fritzsche
           group: fx-data-dev
-          url: '{ref}`Telemetry`'
+          url: '{doc}`/toolkit/components/telemetry/index`'
           peers_emeritus:
             - *perrymcmanis
           review_group: toolkit-telemetry-reviewers-rotation

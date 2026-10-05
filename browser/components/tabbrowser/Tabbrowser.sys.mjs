@@ -5975,9 +5975,6 @@ export class Tabbrowser {
     let lastToClose;
 
     for (let tab of tabs) {
-      if (!skipRemoves) {
-        tab._closedInMultiselection = true;
-      }
       if (!skipRemoves && tab.selected) {
         lastToClose = tab;
         let toBlurTo = this._findTabToBlurTo(lastToClose, tabs);
@@ -6009,6 +6006,7 @@ export class Tabbrowser {
                     prewarmed: true,
                     skipPermitUnload: true,
                     skipSessionStore,
+                    inMultiselection: true,
                   });
                 }
               } else {
@@ -6039,6 +6037,7 @@ export class Tabbrowser {
           prewarmed: true,
           skipPermitUnload,
           skipSessionStore,
+          inMultiselection: true,
           metricsContext,
         });
       }
@@ -6263,6 +6262,7 @@ export class Tabbrowser {
         prewarmed: true,
         skipPermitUnload,
         skipSessionStore,
+        inMultiselection: true,
         // removeTab decides on its own whether to close the window when it
         // takes the last tab, so pass this along or it will close the window
         // even when we were asked not to.
@@ -6275,7 +6275,6 @@ export class Tabbrowser {
         this.removeTab(tab, removeTabOptions);
         if (!tab.closing) {
           // If we abort the closing of the tab.
-          tab._closedInMultiselection = false;
           closedTabCount -= 1;
         }
       }
@@ -6359,6 +6358,9 @@ export class Tabbrowser {
    *   Whether the tab that would be selected next has already been warmed up.
    * @param {boolean} [options.skipSessionStore]
    *   If true, don't record the closed tab in SessionStore.
+   * @param {boolean} [options.inMultiselection]
+   *   Whether the tab closes as one of a set of tabs closed together, which
+   *   SessionStore records so that they can be reopened together.
    * @param {TabMetricsContext} [options.metricsContext]
    *   The context for the operation for telemetry purposes.
    * @see Tabbrowser.runBeforeUnloadForTabs
@@ -6372,6 +6374,7 @@ export class Tabbrowser {
       closeWindowWithLastTab,
       prewarmed,
       skipSessionStore,
+      inMultiselection,
       metricsContext,
     } = {}
   ) {
@@ -6428,6 +6431,7 @@ export class Tabbrowser {
         closeWindowWithLastTab,
         prewarmed,
         skipSessionStore,
+        inMultiselection,
         metricsContext,
       })
     ) {
@@ -6573,6 +6577,8 @@ export class Tabbrowser {
    *   Whether the tab that would be selected next has already been warmed up.
    * @param {boolean} [options.skipSessionStore]
    *   If true, don't record the closed tab in SessionStore.
+   * @param {boolean} [options.inMultiselection]
+   *   Whether the tab closes as one of a set of tabs closed together.
    * @param {TabMetricsContext} [options.metricsContext]
    *   The context for the operation for telemetry purposes. Defaults to an
    *   unknown context.
@@ -6589,6 +6595,7 @@ export class Tabbrowser {
       skipPermitUnload,
       prewarmed,
       skipSessionStore = false,
+      inMultiselection,
       metricsContext = this.TabMetrics.UNKNOWN_CONTEXT,
     } = {}
   ) {
@@ -6749,6 +6756,7 @@ export class Tabbrowser {
       detail: {
         adoptedBy: adoptedByTab,
         skipSessionStore,
+        inMultiselection,
         metricsContext,
       },
     });
@@ -6996,7 +7004,7 @@ export class Tabbrowser {
       // #startRemoveTabs doesn't close the last tab in the window
       // for this use case, we simply close it
       if (lastToClose) {
-        this.removeTab(lastToClose);
+        this.removeTab(lastToClose, { inMultiselection: true });
         closedCount++;
       }
     }

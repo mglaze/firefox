@@ -2015,7 +2015,8 @@ pref("browser.newtabpage.activity-stream.discoverystream.locale-weather-config",
 // Regions with no widgets at all. Everywhere else the container is available
 // and on, and each widget's own prefs decide what appears. Blank means no
 // restriction, so there is no allow list here. Nightly ignores every list
-// below -- see marketGate in ActivityStream.sys.mjs.
+// below -- see marketGate in ActivityStream.sys.mjs. Every list below is
+// ignored unless widgets.marketGate.enabled is true.
 pref("browser.newtabpage.activity-stream.widgets.system.region-block", "");
 
 // Lists is available everywhere the container is except PL, where only the

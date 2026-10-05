@@ -941,4 +941,8 @@ var vectors = [
     sanitized:
       '<html><head></head><body><svg><a xlink:title="foo">bar</a></svg></body></html>',
   },
+  {
+    data: `<div is="custom-div">foo</div>`,
+    sanitized: "<html><head></head><body><div>foo</div></body></html>",
+  },
 ];

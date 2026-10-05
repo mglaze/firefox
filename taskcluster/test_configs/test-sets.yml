@@ -545,7 +545,6 @@ macosx1470-64-tests:
     - cppunittest
 
 macosx1015-64-qr-tests:
-    - cppunittest
     - crashtest
     - jittest
     - mochitest-media

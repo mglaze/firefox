@@ -48,7 +48,7 @@ export class NewTabContentPing {
   /**
    * Set the maximum number of events to send in a 24 hour period
    *
-   * @param {int} maxEvents
+   * @param {number} maxEvents
    */
   setMaxEventsPerDay(maxEvents) {
     this.#maxDailyEvents = maxEvents || 0;
@@ -57,7 +57,7 @@ export class NewTabContentPing {
   /**
    * Set the maximum number of events to send in a 24 hour period
    *
-   * @param {int} maxEvents
+   * @param {number} maxEvents
    */
   setMaxClickEventsPerDay(maxEvents) {
     this.#maxDailyClickEvents = maxEvents || 0;
@@ -66,7 +66,7 @@ export class NewTabContentPing {
   /**
    * Set the maximum number of events to send in a 24 hour period
    *
-   * @param {int} maxEvents
+   * @param {number} maxEvents
    */
   setMaxClickEventsPerWeek(maxEvents) {
     this.#maxWeeklyClickEvents = maxEvents || 0;
@@ -353,8 +353,8 @@ export class NewTabContentPing {
   /**
    * Returns a secure random number between 0 and range
    *
-   * @param {int} range Integer value range
-   * @returns {int} Random value between 0 and range non-inclusive
+   * @param {number} range Integer value range
+   * @returns {number} Random value between 0 and range non-inclusive
    */
   static secureRandIntInRange(range) {
     // To ensure a uniform distribution, we discard values that could introduce
@@ -401,7 +401,7 @@ export class NewTabContentPing {
    *
    * This function is a no-op when not running in test automation.
    *
-   * @returns {number}
+   * @returns {Promise<number>}
    *   The originally selected random delay for submitting the newtab-content
    *   ping.
    * @throws {Error}

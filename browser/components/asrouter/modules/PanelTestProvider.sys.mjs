@@ -2919,7 +2919,7 @@ const MESSAGES = () => [
     content: {
       messageType: "ASRouterMultistageMessage",
       id: "TEST_HNT_CARD_STACK",
-      transitions: false,
+      transitions: true,
       backdrop: "transparent",
       screens: [
         {

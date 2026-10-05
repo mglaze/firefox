@@ -1,9 +1,9 @@
 (urlbar-telemetry)=
 
-# Address Bar Telemetry
+# Telemetry
 
 This section describes existing telemetry probes measuring interaction with the
-Address Bar.
+address bar and the search bars.
 
 This document only covers Legacy telemetry, not Glean telemetry.
 Glean metrics are self-documenting and can be looked up in the Glean dictionary.

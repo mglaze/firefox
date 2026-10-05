@@ -332,9 +332,15 @@ void MacroAssembler::add32(Imm32 imm, const Address& dest) {
   const ARMRegister scratch32 = temps.AcquireW();
   MOZ_ASSERT(scratch32.asUnsized() != dest.base);
 
-  Ldr(scratch32, toMemOperand(dest));
+  // Add needs the other scratch register for an unencodable immediate.
+  MemOperand mem = toMemOperand(dest);
+  if (IsImmAddSub(imm.value) || IsImmAddSub(-int64_t(imm.value))) {
+    mem = toSharedMemOperand(dest, mozilla::FloorLog2(sizeof(int32_t)),
+                             temps.AcquireX());
+  }
+  Ldr(scratch32, mem);
   Add(scratch32, scratch32, Operand(imm.value));
-  Str(scratch32, toMemOperand(dest));
+  Str(scratch32, mem);
 }
 
 void MacroAssembler::add32(const Address& src, Register dest) {
@@ -371,9 +377,15 @@ void MacroAssembler::addPtr(Imm32 imm, const Address& dest) {
   const ARMRegister scratch64 = temps.AcquireX();
   MOZ_ASSERT(scratch64.asUnsized() != dest.base);
 
-  Ldr(scratch64, toMemOperand(dest));
+  // Add needs the other scratch register for an unencodable immediate.
+  MemOperand mem = toMemOperand(dest);
+  if (IsImmAddSub(imm.value) || IsImmAddSub(-int64_t(imm.value))) {
+    mem = toSharedMemOperand(dest, mozilla::FloorLog2(sizeof(intptr_t)),
+                             temps.AcquireX());
+  }
+  Ldr(scratch64, mem);
   Add(scratch64, scratch64, Operand(imm.value));
-  Str(scratch64, toMemOperand(dest));
+  Str(scratch64, mem);
 }
 
 void MacroAssembler::addPtr(const Address& src, Register dest) {
@@ -458,9 +470,11 @@ void MacroAssembler::subPtr(Register src, const Address& dest) {
   const ARMRegister scratch64 = temps.AcquireX();
   MOZ_ASSERT(scratch64.asUnsized() != dest.base);
 
-  Ldr(scratch64, toMemOperand(dest));
+  MemOperand mem = toSharedMemOperand(
+      dest, mozilla::FloorLog2(sizeof(intptr_t)), temps.AcquireX());
+  Ldr(scratch64, mem);
   Sub(scratch64, scratch64, Operand(ARMRegister(src, 64)));
-  Str(scratch64, toMemOperand(dest));
+  Str(scratch64, mem);
 }
 
 void MacroAssembler::subPtr(Imm32 imm, Register dest) {
@@ -3756,6 +3770,12 @@ void MacroAssembler::bitmaskInt8x16(FloatRegister src, Register dest,
   Zip1(Simd16B(temp), Simd16B(scratch), Simd16B(temp));
   Addv(ARMFPRegister(temp, 16), Simd8H(temp));
   Mov(ARMRegister(dest, 32), Simd8H(temp), 0);
+}
+
+void MacroAssemblerCompat::nibbleMaskInt8x16(FloatRegister src, Register dest,
+                                             FloatRegister temp) {
+  Shrn(Simd8B(temp), Simd8H(src), 4);
+  Fmov(ARMRegister(dest, 64), ARMFPRegister(temp, 64));
 }
 
 void MacroAssembler::bitmaskInt16x8(FloatRegister src, Register dest,

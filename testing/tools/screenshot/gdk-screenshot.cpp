@@ -47,7 +47,7 @@
 #include <unistd.h>
 
 gboolean save_to_stdout(const gchar* buf, gsize count, GError** error,
-                        gpointer data) {
+                        gpointer /*data*/) {
   size_t written = fwrite(buf, 1, count, stdout);
   if (written != count) {
     g_set_error(error, G_FILE_ERROR, g_file_error_from_errno(errno),

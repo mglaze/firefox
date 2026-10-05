@@ -478,7 +478,7 @@ function Stocks({
           <h2
             id="stocks-widget-label"
             className="stocks-heading sr-only"
-            data-l10n-id="newtab-stocks-widget-title"
+            data-l10n-id="newtab-stocks-widget-title2"
           />
           <StockSearch
             searchStatus={searchStatus}
@@ -508,7 +508,7 @@ function Stocks({
                     ? " sr-only"
                     : ""
                 }`}
-                data-l10n-id="newtab-stocks-widget-title"
+                data-l10n-id="newtab-stocks-widget-title2"
               />
               {widgetSize === "small" && chosenSymbol && (
                 <span className="stocks-small-symbol">{headerSymbol}</span>
@@ -558,7 +558,7 @@ function Stocks({
                 menuId="stocks-context-menu"
                 type="icon ghost"
                 size="small"
-                data-l10n-id="newtab-stocks-widget-menu-button"
+                data-l10n-id="newtab-stocks-widget-menu-button2"
               />
               <panel-list
                 className="panel-list-no-icons"

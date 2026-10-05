@@ -99,6 +99,7 @@ bounce.tracking.protection:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1989175
       - https://bugzilla.mozilla.org/show_bug.cgi?id=2026438
       - https://bugzilla.mozilla.org/show_bug.cgi?id=2072811
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=2071313
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1889444#c16
     data_sensitivity:

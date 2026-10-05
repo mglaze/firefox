@@ -12,6 +12,8 @@ import { BASE_PARAMS, addUtmParams } from "../lib/addUtmParams.mjs";
 
 // Amount of milliseconds for all transitions to complete (including delays).
 const TRANSITION_OUT_TIME = 1000;
+// Keep in sync with --card-stack-duration in _multistage.scss.
+export const CARD_STACK_TRANSITION_OUT_TIME = 400;
 const LANGUAGE_MISMATCH_SCREEN_ID = "AW_LANGUAGE_MISMATCH";
 
 export const MultiStageAboutWelcome = props => {
@@ -147,10 +149,22 @@ export const MultiStageAboutWelcome = props => {
     }
   }, [transition]);
 
+  const isCardStack = defaultScreens?.[0]?.content?.position === "card-stack";
+  const transitionOutTime = isCardStack
+    ? CARD_STACK_TRANSITION_OUT_TIME
+    : TRANSITION_OUT_TIME;
+
   // Transition to next screen, opening about:home on last screen button CTA
   const handleTransition = goBack => {
     // Only handle transitioning out from a screen once.
     if (transition === "out") {
+      return;
+    }
+
+    // The card stack plays a single exit animation on teardown, so finishing
+    // from its last screen would otherwise wait for that twice.
+    if (isCardStack && !goBack && index >= screens.length - 1) {
+      window.AWFinish();
       return;
     }
 
@@ -170,7 +184,7 @@ export const MultiStageAboutWelcome = props => {
           window.AWFinish();
         }
       },
-      props.transitions ? TRANSITION_OUT_TIME : 0
+      props.transitions ? transitionOutTime : 0
     );
   };
 
@@ -194,7 +208,7 @@ export const MultiStageAboutWelcome = props => {
             setTransition(props.transitions ? "in" : "");
             setScreenIndex(Math.min(state, screens.length - 1));
           },
-          props.transitions ? TRANSITION_OUT_TIME : 0
+          props.transitions ? transitionOutTime : 0
         );
       };
 
@@ -209,7 +223,9 @@ export const MultiStageAboutWelcome = props => {
       window.addEventListener("popstate", handler);
       return () => window.removeEventListener("popstate", handler);
     }
-    return false;
+    // React calls a non-undefined return value on unmount, so `false` here
+    // throws when the message is torn down.
+    return undefined;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [multiSelects, setMultiSelects] = useState({});

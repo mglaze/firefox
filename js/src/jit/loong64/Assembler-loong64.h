@@ -856,10 +856,26 @@ enum OpcodeField {
   op_vfcvt_s_d = 0xe28dU << 15,
   op_vftintrz_w_d = 0xe296U << 15,
   op_vshuf_w = 0xe2f6U << 15,
+  op_vseqi_b = 0xe500U << 15,
+  op_vseqi_h = 0xe501U << 15,
+  op_vseqi_w = 0xe502U << 15,
+  op_vseqi_d = 0xe503U << 15,
+  op_vslei_b = 0xe504U << 15,
+  op_vslei_h = 0xe505U << 15,
+  op_vslei_w = 0xe506U << 15,
+  op_vslei_d = 0xe507U << 15,
   op_vslei_bu = 0xe508U << 15,
   op_vslei_hu = 0xe509U << 15,
   op_vslei_wu = 0xe50aU << 15,
   op_vslei_du = 0xe50bU << 15,
+  op_vslti_b = 0xe50cU << 15,
+  op_vslti_h = 0xe50dU << 15,
+  op_vslti_w = 0xe50eU << 15,
+  op_vslti_d = 0xe50fU << 15,
+  op_vslti_bu = 0xe510U << 15,
+  op_vslti_hu = 0xe511U << 15,
+  op_vslti_wu = 0xe512U << 15,
+  op_vslti_du = 0xe513U << 15,
   op_vaddi_bu = 0xe514U << 15,
   op_vaddi_hu = 0xe515U << 15,
   op_vaddi_wu = 0xe516U << 15,
@@ -1968,11 +1984,27 @@ class AssemblerLOONG64 : public AssemblerShared {
   BufferOffset as_vftintrz_w_d(FloatRegister vd, FloatRegister vj,
                                FloatRegister vk);
   BufferOffset as_vshuf_w(FloatRegister vd, FloatRegister vj, FloatRegister vk);
+  BufferOffset as_vslei_b(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vslei_h(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vslei_w(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vslei_d(FloatRegister vd, FloatRegister vj, int32_t imm5);
   BufferOffset as_vslei_bu(FloatRegister vd, FloatRegister vj, uint32_t imm5);
   BufferOffset as_vslei_hu(FloatRegister vd, FloatRegister vj, uint32_t imm5);
   BufferOffset as_vslei_wu(FloatRegister vd, FloatRegister vj, uint32_t imm5);
   BufferOffset as_vslei_du(FloatRegister vd, FloatRegister vj, uint32_t imm5);
   BufferOffset as_vaddi_bu(FloatRegister vd, FloatRegister vj, uint32_t imm5);
+  BufferOffset as_vseqi_b(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vseqi_h(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vseqi_w(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vseqi_d(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vslti_b(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vslti_h(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vslti_w(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vslti_d(FloatRegister vd, FloatRegister vj, int32_t imm5);
+  BufferOffset as_vslti_bu(FloatRegister vd, FloatRegister vj, uint32_t imm5);
+  BufferOffset as_vslti_hu(FloatRegister vd, FloatRegister vj, uint32_t imm5);
+  BufferOffset as_vslti_wu(FloatRegister vd, FloatRegister vj, uint32_t imm5);
+  BufferOffset as_vslti_du(FloatRegister vd, FloatRegister vj, uint32_t imm5);
   BufferOffset as_vaddi_hu(FloatRegister vd, FloatRegister vj, uint32_t imm5);
   BufferOffset as_vaddi_wu(FloatRegister vd, FloatRegister vj, uint32_t imm5);
   BufferOffset as_vaddi_du(FloatRegister vd, FloatRegister vj, uint32_t imm5);
@@ -2089,6 +2121,17 @@ class AssemblerLOONG64 : public AssemblerShared {
   // Try to encode |v| into the si13 field of vldi instruction. The result is
   // returned as the lower 13 bits.
   static std::optional<uint16_t> EncodeVldiImmediate(const SimdConstant& v);
+
+  // Check if |value| can be encoded directly as an immediate in the emitted
+  // instruction for |op|, without needing an extra scratch register.
+  static bool CanEncodeSimdCompareImmediateFor(wasm::SimdOp op,
+                                               const SimdConstant& value);
+
+  // Try to encode |rhs| into the [su]i5 field of vs{le,lt}i.[bhdw]{,u} and
+  // vseqi.[bhdw], iff |rhs| is a splat to all lanes.
+  template <typename T>
+  static std::optional<int64_t> EncodeSimdCompareImmediate(
+      const SimdConstant& rhs, Condition cond);
 
   // label operations
   void bind(Label* label, BufferOffset boff = BufferOffset());
@@ -2498,6 +2541,10 @@ class InstImm : public Instruction {
       case op_vslei_hu:
       case op_vslei_wu:
       case op_vslei_du:
+      case op_vslti_bu:
+      case op_vslti_hu:
+      case op_vslti_wu:
+      case op_vslti_du:
       case op_vslli_w:
       case op_vsrli_w:
       case op_vsrai_w:
@@ -2513,6 +2560,21 @@ class InstImm : public Instruction {
       case op_vssrani_h_w:
       case op_vssrani_hu_w:
         imm_format = std::make_tuple(false, 5);
+        break;
+      // si5 formats.
+      case op_vseqi_b:
+      case op_vseqi_h:
+      case op_vseqi_w:
+      case op_vseqi_d:
+      case op_vslei_b:
+      case op_vslei_h:
+      case op_vslei_w:
+      case op_vslei_d:
+      case op_vslti_b:
+      case op_vslti_h:
+      case op_vslti_w:
+      case op_vslti_d:
+        imm_format = std::make_tuple(true, 5);
         break;
       // ui6 formats.
       case op_vslli_d:

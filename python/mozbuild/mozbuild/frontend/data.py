@@ -1440,6 +1440,7 @@ class DeclaredLicenseNotice(ContextDerived):
         "url",
         "paths",
         "subcomponent",
+        "acknowledgement",
     )
 
     def __init__(
@@ -1453,6 +1454,7 @@ class DeclaredLicenseNotice(ContextDerived):
         url=None,
         paths=(),
         subcomponent=False,
+        acknowledgement=None,
     ):
         ContextDerived.__init__(self, context)
         if not title:
@@ -1474,6 +1476,7 @@ class DeclaredLicenseNotice(ContextDerived):
         self.url = url
         self.paths = list(paths)
         self.subcomponent = subcomponent
+        self.acknowledgement = acknowledgement
 
     def asdict(self):
         return {name: getattr(self, name) for name in self.__slots__}

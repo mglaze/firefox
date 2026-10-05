@@ -28,6 +28,7 @@ import urllib.parse as urlparse
 
 import dlmanager
 import mozpack.path as mozpath
+import requests
 
 from mozbuild.build_markers import build_marker
 from mozbuild.dirutils import mkdir
@@ -165,13 +166,19 @@ class ArtifactCache:
         self._log = log
         self._skip_cache = skip_cache
         self._persist_limit = ArtifactPersistLimit(log)
+        session = requests.Session()
+        session.hooks["response"].append(self._track_response)
         self._download_manager = dlmanager.DownloadManager(
-            self._cache_dir, persist_limit=self._persist_limit
+            self._cache_dir, session=session, persist_limit=self._persist_limit
         )
+        self._response = threading.local()
 
     def log(self, *args, **kwargs):
         if self._log:
             self._log(*args, **kwargs)
+
+    def _track_response(self, response, *args, **kwargs):
+        self._response.current = response
 
     def fetch(self, url, force=False):
         fname = os.path.basename(url)
@@ -206,10 +213,12 @@ class ArtifactCache:
             dl = self._download_manager.download(url, fname)
             last_dl_update = -1
 
-            def download_progress(dl, bytes_so_far, total_size):
+            def download_progress(dl, _decoded_bytes, total_size):
                 nonlocal last_dl_update
                 if not total_size:
                     return
+                # Content-Length is the compressed size, but dlmanager counts decoded bytes.
+                bytes_so_far = self._response.current.raw.tell()
                 percent = (float(bytes_so_far) / total_size) * 100
                 now = int(percent / 5)
                 if now == last_dl_update:

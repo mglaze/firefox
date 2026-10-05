@@ -269,6 +269,10 @@ let propNameAllowlist = [
   // This property was used in the onboarding set up feature callout checklist.
   // It's currently not referenced in CSS but may be needed for future use.
   { propName: "--fc-icon-success-color", isFromDevTools: false },
+
+  // This property is used by about:addons to control Nova themes previews
+  // UI controls positioning for RTL locales in the bundled preview-nova.svg.
+  { propName: "--theme-preview-rtl-flip", isFromDevTools: false },
 ];
 
 // Add suffix to stylesheets' URI so that we always load them here and

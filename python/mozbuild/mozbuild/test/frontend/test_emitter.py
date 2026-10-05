@@ -2090,6 +2090,8 @@ class TestEmitterBasic(unittest.TestCase):
         mylib = notices["mylib"]
         self.assertEqual(mylib.notice, "Copyright 2026 Somebody.")
         self.assertEqual(mylib.paths, ["extra/path"])
+        self.assertEqual(mylib.acknowledgement, "Portions are copyright Somebody.")
+        self.assertIsNone(mit.acknowledgement)
 
         self.assertEqual([o.id for o in coverage], ["MIT"])
         self.assertEqual(coverage[0].relsrcdir, "lib")

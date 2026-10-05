@@ -1558,15 +1558,10 @@ static bool GlobalOfFirstJobInQueue(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  auto& genericJob = cx->microTaskQueues->microTaskQueue.front();
-  JS::JSMicroTask* job = JS::ToUnwrappedJSMicroTask(genericJob);
-  if (!job) {
-    JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_DEAD_OBJECT);
+  const JS::MicroTask& job =
+      cx->microTaskQueues->microTaskQueue.front().toMicroTask();
 
-    return false;
-  }
-
-  RootedObject global(cx, JS::GetExecutionGlobalFromJSMicroTask(job));
+  RootedObject global(cx, job.asJS().executionGlobal());
   if (!global) {
     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_DEAD_OBJECT);
     return false;

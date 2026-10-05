@@ -151,6 +151,11 @@ Atomic<uint32_t> gHeartbeat(0);
 Atomic<uint32_t> gCrashAfterTicks(0);
 
 /**
+ * Whether a test shortened the deadline to crash us on purpose.
+ */
+Atomic<bool, Relaxed> gCrashRequestedByTest(false);
+
+/**
  * Save a profile of this process before we crash on a shutdown hang, so a
  * profiled run keeps the data leading up to the hang. We gather it here on the
  * watchdog thread rather than dispatching to the (blocked) main thread:
@@ -158,7 +163,7 @@ Atomic<uint32_t> gCrashAfterTicks(0);
  * sampled main-thread stack it captures shows what is blocking shutdown.
  */
 void MaybeSaveShutdownHangProfile() {
-  if (!profiler_is_active()) {
+  if (!profiler_is_active() || gCrashRequestedByTest) {
     return;
   }
 
@@ -475,6 +480,7 @@ nsTerminator::GetTicksForShutdownPhases(JSContext* aCx,
 
 NS_IMETHODIMP
 nsTerminator::SetTicksBeforeCrash(uint32_t aTicks) {
+  gCrashRequestedByTest = true;
   gCrashAfterTicks = aTicks;
   return NS_OK;
 }

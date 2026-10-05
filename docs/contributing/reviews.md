@@ -138,7 +138,7 @@ Remember that reviewers are human too, and may have complex reasons that prevent
 
 For simple documentation changes, reviews are not required.
 
-For more information about the review process, see the {ref}`Code Review FAQ`.
+For more information about the review process, see the {doc}`Code_Review_FAQ`.
 
 ## Review groups
 

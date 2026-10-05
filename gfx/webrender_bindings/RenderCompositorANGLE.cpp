@@ -158,7 +158,7 @@ bool RenderCompositorANGLE::Initialize(nsACString& aError) {
   }
 
   // Create SwapChain when compositor is not used
-  if (!UseCompositor()) {
+  if (!UseLayerCompositor()) {
     if (!CreateSwapChain(aError)) {
       // SwapChain creation failed.
       return false;
@@ -290,7 +290,7 @@ bool RenderCompositorANGLE::CreateSwapChainForHWND() {
 }
 
 bool RenderCompositorANGLE::CreateSwapChain(nsACString& aError) {
-  MOZ_ASSERT(!UseCompositor());
+  MOZ_ASSERT(!UseLayerCompositor());
 
   mFirstPresent = true;
   CreateSwapChainForDCompIfPossible();
@@ -335,7 +335,7 @@ void RenderCompositorANGLE::CreateSwapChainForDCompIfPossible() {
   // When compositor is enabled, CompositionSurface is used for rendering.
   // It does not support triple buffering.
   const bool useTripleBuffering =
-      gfx::gfxVars::UseWebRenderTripleBufferingWin() && !UseCompositor();
+      gfx::gfxVars::UseWebRenderTripleBufferingWin() && !UseLayerCompositor();
   RefPtr<IDXGISwapChain1> swapChain1 =
       CreateSwapChainForDComp(useTripleBuffering);
   if (swapChain1) {
@@ -422,7 +422,7 @@ bool RenderCompositorANGLE::ShouldUseAlpha() const {
 bool RenderCompositorANGLE::BeginFrame() {
   mWidget->AsWindows()->UpdateCompositorWndSizeIfNecessary();
 
-  if (!UseCompositor()) {
+  if (!UseLayerCompositor()) {
     if (NS_WARN_IF(!mSwapChainUsingAlpha && ShouldUseAlpha())) {
       if (NS_WARN_IF(!RecreateNonNativeCompositorSwapChain())) {
         return false;
@@ -460,7 +460,7 @@ RenderedFrameId RenderCompositorANGLE::EndFrame(
     mFence->IncrementAndSignal();
   }
 
-  if (!UseCompositor()) {
+  if (!UseLayerCompositor()) {
     auto start = TimeStamp::Now();
     if (auto* fxrHandler = mWidget->AsWindows()->GetFxrOutputHandler()) {
       // There is a Firefox Reality handler for this swapchain. Update this
@@ -705,7 +705,7 @@ bool RenderCompositorANGLE::MakeCurrent() {
 }
 
 LayoutDeviceIntSize RenderCompositorANGLE::GetBufferSize() {
-  if (!UseCompositor()) {
+  if (!UseLayerCompositor()) {
     MOZ_ASSERT(mBufferSize.isSome());
     if (mBufferSize.isNothing()) {
       return LayoutDeviceIntSize();
@@ -810,16 +810,12 @@ gfx::DeviceResetReason RenderCompositorANGLE::IsContextLost(bool aForce) {
   return layers::DXGIErrorToDeviceResetReason(reason);
 }
 
-bool RenderCompositorANGLE::UseCompositor() const {
-  return mDCLayerTree && mDCLayerTree->UseCompositor();
-}
-
 bool RenderCompositorANGLE::UseLayerCompositor() const {
   return mDCLayerTree && mDCLayerTree->UseLayerCompositor();
 }
 
 bool RenderCompositorANGLE::SupportAsyncScreenshot() {
-  return !UseCompositor();
+  return !UseLayerCompositor();
 }
 
 bool RenderCompositorANGLE::ShouldUseNativeCompositor() { return false; }
@@ -921,20 +917,14 @@ void RenderCompositorANGLE::InitializeUsePartialPresent() {
   // Even when mSwapChain1 is null, we could enable WR partial present, since
   // when mSwapChain1 is null, SwapChain is blit model swap chain with one
   // buffer.
-  mUsePartialPresent = !UseCompositor() &&
+  mUsePartialPresent = !UseLayerCompositor() &&
                        !mWidget->AsWindows()->HasFxrOutputHandler() &&
                        gfx::gfxVars::WebRenderMaxPartialPresentRects() > 0;
 }
 
 bool RenderCompositorANGLE::UsePartialPresent() { return mUsePartialPresent; }
 
-bool RenderCompositorANGLE::RequestFullRender() {
-  // XXX Remove when partial update is supported.
-  if (UseLayerCompositor() && mDCLayerTree->UseDCLayerDCompositionTexture()) {
-    return true;
-  }
-  return mFullRender;
-}
+bool RenderCompositorANGLE::RequestFullRender() { return mFullRender; }
 
 uint32_t RenderCompositorANGLE::GetMaxPartialPresentRects() {
   if (!mUsePartialPresent) {
@@ -948,7 +938,7 @@ bool RenderCompositorANGLE::MaybeReadback(
     const Range<uint8_t>& aReadbackBuffer, bool* aNeedsYFlip) {
   MOZ_ASSERT(aReadbackFormat == wr::ImageFormat::BGRA8);
 
-  if (!UseCompositor()) {
+  if (!UseLayerCompositor()) {
     return false;
   }
 

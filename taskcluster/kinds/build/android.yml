@@ -272,6 +272,8 @@ android-aarch64/opt:
 
 android-aarch64-appservices/opt:
     description: "Android AArch64 Opt with an in-tree app-services"
+    attributes:
+        skip-verify-test-packaging: true
     index:
         job-name: android-aarch64-appservices-opt
     treeherder:
@@ -282,6 +284,7 @@ android-aarch64-appservices/opt:
     worker:
         env:
             TOOLTOOL_MANIFEST: "mobile/android/config/tooltool-manifests/android/releng.manifest"
+            MOZ_AUTOMATION_PACKAGE_TESTS: "1"
             MOZ_APPSERVICES_IN_TREE: "1"
             PERFHERDER_EXTRA_OPTIONS: appservices
     run:
@@ -700,35 +703,10 @@ android-x86_64/debug:
             - linux64-sccache
             - android-gradle-dependencies
 
-android-x86_64/debug-isolated-process:
-    description: "Android x86-64 Debug with Isolated Process"
-    index:
-        job-name: android-x86_64-debug-isolated-process
-    attributes:
-        enable-full-crashsymbols: true
-    treeherder:
-        platform: android-5-0-x86_64/debug
-        symbol: Bip
-    worker:
-        env:
-            TOOLTOOL_MANIFEST: "mobile/android/config/tooltool-manifests/android-x86/releng.manifest"
-            MOZ_AUTOMATION_PACKAGE_TESTS: "1"
-            PERFHERDER_EXTRA_OPTIONS: isolated-process
-    mozconfig:
-        variant: debug-isolated-process
-    run:
-        actions: [get-secrets, build]
-        custom-build-variant-cfg: x86_64-debug-isolated-process
-    use-sccache: true
-    fetches:
-        toolchain:
-            - linux64-clang
-            - linux64-rust-android
-            - linux64-sccache
-            - android-gradle-dependencies
-
 android-x86_64-appservices/debug:
     description: "Android x86-64 Debug with an in-tree app-services"
+    attributes:
+        skip-verify-test-packaging: true
     index:
         job-name: android-x86_64-appservices-debug
     treeherder:
@@ -739,6 +717,7 @@ android-x86_64-appservices/debug:
     worker:
         env:
             TOOLTOOL_MANIFEST: "mobile/android/config/tooltool-manifests/android-x86/releng.manifest"
+            MOZ_AUTOMATION_PACKAGE_TESTS: "1"
             MOZ_APPSERVICES_IN_TREE: "1"
             PERFHERDER_EXTRA_OPTIONS: appservices
     mozconfig:

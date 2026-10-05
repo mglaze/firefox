@@ -4,16 +4,8 @@
 
 import { PrivateBrowsingUtils } from "resource://gre/modules/PrivateBrowsingUtils.sys.mjs";
 import { TabMetrics } from "moz-src:///browser/components/tabbrowser/TabMetrics.sys.mjs";
-import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const MAX_INITIAL_ITEMS = 5;
-
-const lazy = XPCOMUtils.declareLazy({
-  tabGroupsAlternateMenu: {
-    pref: "browser.tabs.groups.alternateMenu",
-    default: false,
-  },
-});
 
 export class GroupsPanel {
   constructor({ view, containerNode, showAll = false }) {
@@ -105,12 +97,6 @@ export class GroupsPanel {
 
   #showAll;
   #populate() {
-    if (lazy.tabGroupsAlternateMenu) {
-      this.containerNode.replaceChildren();
-      this.#setupListeners();
-      return;
-    }
-
     let fragment = this.doc.createDocumentFragment();
 
     let openGroups = this.win.gBrowser.getAllTabGroups({

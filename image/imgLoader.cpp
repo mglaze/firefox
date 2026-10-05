@@ -131,11 +131,13 @@ class imgMemoryReporter final : public nsIMemoryReporter {
     for (uint32_t i = 0; i < mKnownLoaders.Length(); i++) {
       for (imgCacheEntry* entry : mKnownLoaders[i]->mCache.Values()) {
         RefPtr<imgRequest> req = entry->GetRequest();
-        RecordCounterForRequest(req, &content, !entry->HasNoProxies());
+        RecordCounterForRequest(req, &content, !entry->HasNoProxies(),
+                                aAnonymize);
       }
       MutexAutoLock lock(mKnownLoaders[i]->mUncachedImagesMutex);
       for (RefPtr<imgRequest> req : mKnownLoaders[i]->mUncachedImages) {
-        RecordCounterForRequest(req, &uncached, req->HasConsumers());
+        RecordCounterForRequest(req, &uncached, req->HasConsumers(),
+                                aAnonymize);
       }
     }
 
@@ -190,7 +192,8 @@ class imgMemoryReporter final : public nsIMemoryReporter {
         // tree -- so we use moz_malloc_size_of instead of ImagesMallocSizeOf to
         // prevent DMD from seeing it reported twice.
         SizeOfState state(moz_malloc_size_of);
-        ImageMemoryCounter counter(req, image, state, /* aIsUsed = */ true);
+        ImageMemoryCounter counter(req, image, state, /* aIsUsed = */ true,
+                                   /* aAnonymize = */ true);
 
         n += counter.Values().DecodedHeap();
         n += counter.Values().DecodedNonHeap();
@@ -263,12 +266,6 @@ class imgMemoryReporter final : public nsIMemoryReporter {
         counter.URI().Truncate();
         counter.URI().AppendPrintf("<anonymized-%u>", i);
       } else {
-        // The URI could be an extremely long data: URI. Truncate if needed.
-        static const size_t max = 256;
-        if (counter.URI().Length() > max) {
-          counter.URI().Truncate(max);
-          counter.URI().AppendLiteral(" (truncated)");
-        }
         counter.URI().ReplaceChar('/', '\\');
       }
 
@@ -582,16 +579,16 @@ class imgMemoryReporter final : public nsIMemoryReporter {
 
   static void RecordCounterForRequest(imgRequest* aRequest,
                                       nsTArray<ImageMemoryCounter>* aArray,
-                                      bool aIsUsed) {
+                                      bool aIsUsed, bool aAnonymize) {
     SizeOfState state(ImagesMallocSizeOf);
     RefPtr<image::Image> image = aRequest->GetImage();
     if (image) {
-      ImageMemoryCounter counter(aRequest, image, state, aIsUsed);
+      ImageMemoryCounter counter(aRequest, image, state, aIsUsed, aAnonymize);
       aArray->AppendElement(std::move(counter));
     } else {
       // We can at least record some information about the image from the
       // request, and mark it as not knowing the image type yet.
-      ImageMemoryCounter counter(aRequest, state, aIsUsed);
+      ImageMemoryCounter counter(aRequest, state, aIsUsed, aAnonymize);
       aArray->AppendElement(std::move(counter));
     }
   }
@@ -2784,7 +2781,7 @@ nsresult imgLoader::LoadImageWithChannel(nsIChannel* channel,
 #endif
 
   // Filter out any load flags not from nsIRequest
-  requestFlags &= nsIRequest::LOAD_INHERIT_MASK;
+  requestFlags &= nsIRequest::LOAD_REQUESTMASK;
 
   nsresult rv = NS_OK;
   if (request) {

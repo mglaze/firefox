@@ -69,9 +69,7 @@ document.addEventListener(
           TabContextMenu.contextTab.resumeDelayedMedia();
           break;
         case "context_playSelectedTabs":
-          gBrowser.resumeDelayedMediaOnMultiSelectedTabs(
-            TabContextMenu.contextTab
-          );
+          gBrowser.resumeDelayedMediaOnMultiSelectedTabs();
           break;
         case "context_toggleMuteTab":
           TabContextMenu.contextTab.toggleMuteAudio();

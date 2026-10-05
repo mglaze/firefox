@@ -107,13 +107,10 @@ add_task(async function test_pills_render() {
   );
 
   await TestUtils.waitForCondition(
-    () => control.getAttribute("aria-label"),
+    () => control.ariaLabel,
     "Waiting for Fluent to name the pill group"
   );
-  Assert.ok(
-    control.getAttribute("aria-label"),
-    "The pill group has an accessible name"
-  );
+  Assert.ok(control.ariaLabel, "The pill group has an accessible name");
 
   await win.close();
 });

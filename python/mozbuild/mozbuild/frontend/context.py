@@ -1226,6 +1226,7 @@ LicensesList = StrictOrderingOnAppendListWithFlagsFactory({
     "url": str,
     "paths": list,
     "subcomponent": bool,
+    "acknowledgement": str,
 })
 
 LicensedUnderList = StrictOrderingOnAppendListWithFlagsFactory({"paths": list})
@@ -2029,6 +2030,12 @@ VARIABLES = {
 
         ``url``
            Optional canonical URL for the license.
+
+        ``acknowledgement``
+           Optional one-line credit, as HTML, listed under "Acknowledgements"
+           in ``about:license``. Some licenses ask for such a sentence in the
+           product's documentation, such as the FreeType License, and some
+           authors merely request one.
 
         ``paths``
            Optional extra paths this notice covers, listed under its heading in

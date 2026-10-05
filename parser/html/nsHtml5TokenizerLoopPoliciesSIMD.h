@@ -13,7 +13,8 @@
  * This policy does not report tokenizer transitions anywhere and does not
  * track line and column numbers. To be used for innerHTML.
  *
- * This the SIMD version for aarch64 and SSSE3-enabled x86/x86_64.
+ * This the SIMD version for aarch64, SSSE3-enabled x86/x86_64, and LSX-enabled
+ * loongarch64.
  */
 struct nsHtml5FastestPolicySIMD {
   static const bool reportErrors = false;

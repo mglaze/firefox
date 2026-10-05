@@ -268,15 +268,15 @@ user-login = "jrmuizel"
 user-name = "Jeff Muizelaar"
 
 [[publisher.glean]]
-version = "70.2.0"
-when = "2026-09-21"
+version = "70.2.1"
+when = "2026-09-30"
 user-id = 48
 user-login = "badboy"
 user-name = "Jan-Erik Rediger"
 
 [[publisher.glean-core]]
-version = "70.2.0"
-when = "2026-09-21"
+version = "70.2.1"
+when = "2026-09-30"
 user-id = 48
 user-login = "badboy"
 user-name = "Jan-Erik Rediger"
@@ -542,13 +542,6 @@ when = "2024-04-25"
 user-id = 2915
 user-login = "Amanieu"
 user-name = "Amanieu d'Antras"
-
-[[publisher.paste]]
-version = "1.0.11"
-when = "2022-12-17"
-user-id = 3618
-user-login = "dtolnay"
-user-name = "David Tolnay"
 
 [[publisher.pe-unwind-info]]
 version = "0.6.0"
@@ -979,6 +972,13 @@ user-name = "Kenny Kerr"
 
 [[publisher.windows-interface]]
 version = "0.59.3"
+when = "2025-10-06"
+user-id = 64539
+user-login = "kennykerr"
+user-name = "Kenny Kerr"
+
+[[publisher.windows-link]]
+version = "0.2.1"
 when = "2025-10-06"
 user-id = 64539
 user-login = "kennykerr"
@@ -1540,6 +1540,12 @@ notes = """
 No `unsafe` code in this update. Lots of changes but all
 object-file-format-related, everything looks good.
 """
+
+[[audits.bytecode-alliance.audits.pastey]]
+who = "Chris Fallin <chris@cfallin.org>"
+criteria = "safe-to-deploy"
+version = "0.2.1"
+notes = "No unsafe code."
 
 [[audits.bytecode-alliance.audits.percent-encoding]]
 who = "Alex Crichton <alex@alexcrichton.com>"

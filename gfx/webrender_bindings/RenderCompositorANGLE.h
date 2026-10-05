@@ -124,7 +124,6 @@ class RenderCompositorANGLE final : public RenderCompositor {
                      bool* aNeedsYFlip) override;
 
  protected:
-  bool UseCompositor() const;
   bool RecreateNonNativeCompositorSwapChain();
   void InitializeUsePartialPresent();
   void InsertGraphicsCommandsFinishedWaitQuery(

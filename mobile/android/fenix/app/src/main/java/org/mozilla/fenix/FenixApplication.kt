@@ -60,6 +60,7 @@ import mozilla.components.concept.storage.FrecencyThresholdOption
 import mozilla.components.feature.addons.migration.DefaultSupportedAddonsChecker
 import mozilla.components.feature.addons.update.GlobalAddonDependencyProvider
 import mozilla.components.feature.autofill.AutofillUseCases
+import mozilla.components.feature.automotive.isAndroidAutomotiveAvailable
 import mozilla.components.feature.fxsuggest.GlobalFxSuggestDependencyProvider
 import mozilla.components.feature.search.ext.buildSearchUrl
 import mozilla.components.feature.search.ext.waitForSelectedOrDefaultSearchEngine
@@ -979,6 +980,7 @@ open class FenixApplication : Application(), Provider, ThemeProvider {
             ),
         mozillaProductDetector: MozillaProductDetector = MozillaProductDetector,
         powerManagerInfoProvider: PowerManagerInfoProvider = DefaultPowerManagerInfoProvider(applicationContext),
+        isAutomotiveDevice: Boolean = applicationContext.isAndroidAutomotiveAvailable(),
     ) {
         setPreferenceMetrics(settings, dohSettingsProvider)
         with(Metrics) {
@@ -1062,6 +1064,7 @@ open class FenixApplication : Application(), Provider, ThemeProvider {
             deviceTotalRam.set(deviceTotalRAM)
 
             isLargeDevice.set(isLargeScreenSize())
+            isAndroidAutomotive.set(isAutomotiveDevice)
         }
 
         PowerSavingMode.activeAtStartup.set(powerManagerInfoProvider.isPowerSaveMode())

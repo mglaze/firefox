@@ -1531,12 +1531,7 @@ extern "C" {
 pub struct WrCompositor(*mut c_void);
 
 impl Compositor for WrCompositor {
-    fn create_surface(
-        &mut self,
-        id: NativeSurfaceId,
-        tile_size: DeviceIntSize,
-        is_opaque: bool,
-    ) {
+    fn create_surface(&mut self, id: NativeSurfaceId, tile_size: DeviceIntSize, is_opaque: bool) {
         unsafe {
             wr_compositor_create_surface(self.0, id, tile_size, is_opaque);
         }
@@ -2154,6 +2149,7 @@ pub extern "C" fn wr_window_new(
     max_shared_surface_size: i32,
     enable_subpixel_aa: bool,
     use_layer_compositor: bool,
+    limit_sdr_yuv_external_composites: bool,
 ) -> bool {
     assert!(unsafe { is_in_render_thread() });
 
@@ -2337,6 +2333,7 @@ pub extern "C" fn wr_window_new(
         max_shared_surface_size,
         enable_dithering,
         enable_yuv_overlay_stability,
+        limit_sdr_yuv_external_composites,
         enable_shared_instance_buffer,
         ..Default::default()
     };

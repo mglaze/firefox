@@ -335,6 +335,9 @@ class nsHttpTransaction final : public nsAHttpTransaction,
                                   bool& aAllRecordsHaveEchConfig);
   // This function setups a new connection info for restarting this transaction.
   void PrepareConnInfoForRetry(nsresult aReason);
+  // Switches to a direct-route connection info with HTTP/3 disabled, so the
+  // transaction is restarted over HTTP/2 or HTTP/1.1.
+  void DisableHttp3ForRestart();
   // This function is used to select the next non http3 record and is only
   // executed when the fast fallback timer is triggered.
   already_AddRefed<nsHttpConnectionInfo> PrepareFastFallbackConnInfo(

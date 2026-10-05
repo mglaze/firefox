@@ -6736,6 +6736,7 @@ already_AddRefed<SourceSurface> SharedContextWebgl::ImportSurfaceDescriptor(
   if (!handle) {
     return nullptr;
   }
+
   BackingTexture* backing = handle->GetBackingTexture();
   RefPtr<WebGLTexture> tex = backing->GetWebGLTexture();
   if (mLastTexture != tex) {
@@ -6756,6 +6757,7 @@ already_AddRefed<SourceSurface> SharedContextWebgl::ImportSurfaceDescriptor(
   webgl::TexUnpackBlobDesc texDesc = {
       LOCAL_GL_TEXTURE_2D, {uint32_t(aSize.width), uint32_t(aSize.height), 1}};
   texDesc.sd = Some(aDesc);
+  texDesc.destFormat = aFormat;
   texDesc.structuredSrcSize = uvec2::FromSize(aSize);
   GLenum intFormat =
       aFormat == SurfaceFormat::A8 ? LOCAL_GL_R8 : LOCAL_GL_RGBA8;

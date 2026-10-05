@@ -1,10 +1,10 @@
 (urlbar-architecture-overview)=
 
-# Address Bar Architecture
+# Architecture
 
-The address bar is implemented as a *model-view-controller* (MVC) system. One of
-the scopes of this architecture is to allow easy replacement of its components,
-for easier experimentation.
+The address bar and the search bars are implemented as a
+*model-view-controller* (MVC) system. One of the scopes of this architecture is
+to allow easy replacement of its components, for easier experimentation.
 
 Each search is represented by a unique object, the *UrlbarQueryContext*. This
 object, created by the *View*, describes the search and is passed through all of

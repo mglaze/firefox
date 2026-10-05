@@ -341,8 +341,8 @@ export const WIDGET_REGISTRY = [
   {
     id: "stocks",
     telemetryName: "stocks",
-    prefsL10nId: "home-prefs-stocks-header",
-    customizeL10nId: "newtab-custom-widget-stocks-toggle",
+    prefsL10nId: "home-prefs-stocks-header2",
+    customizeL10nId: "newtab-custom-widget-stocks-toggle2",
     customizeEventSource: "WIDGET_STOCKS",
     order: 7,
     enabledPref: PREF_WIDGETS_STOCKS_ENABLED,

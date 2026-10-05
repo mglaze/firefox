@@ -1582,6 +1582,43 @@ nsIOService::AllowPort(int32_t inPort, const char* scheme, bool* _retval) {
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsIOService::AddBlockedLocalPort(int32_t aPort) {
+  MOZ_ASSERT(NS_IsMainThread());
+  if (!XRE_IsParentProcess()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if (aPort <= 0 || aPort > std::numeric_limits<uint16_t>::max()) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  AutoWriteLock lock(mLock);
+  if (!mBlockedLocalPorts.Contains(aPort)) {
+    mBlockedLocalPorts.AppendElement(aPort);
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsIOService::RemoveBlockedLocalPort(int32_t aPort) {
+  MOZ_ASSERT(NS_IsMainThread());
+  if (!XRE_IsParentProcess()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if (aPort <= 0 || aPort > std::numeric_limits<uint16_t>::max()) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  AutoWriteLock lock(mLock);
+  mBlockedLocalPorts.RemoveElement(aPort);
+  return NS_OK;
+}
+
+bool nsIOService::IsLocalPortBlocked(uint16_t aPort) {
+  AutoReadLock lock(mLock);
+  return mBlockedLocalPorts.Contains(aPort);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // static

@@ -201,7 +201,6 @@ class CargoInvocation:
             color = "never" if _bool(environ.get("NO_ANSI")) else "always"
         return cls(
             verbose=_bool(environ.get("BUILD_VERBOSE_LOG")),
-            json_output=_bool(environ.get("USE_CARGO_JSON_MESSAGE_FORMAT")),
             color=color,
             extra_rustflags=tuple((environ.get("extra_rustflags") or "").split()),
             cargo_rustcflags=tuple(_as_args(environ.get("CARGO_RUSTCFLAGS"))),
@@ -540,6 +539,7 @@ def compose_env(
     if "PKG_CONFIG_LIBDIR" in substs:
         env["PKG_CONFIG_LIBDIR"] = substs["PKG_CONFIG_LIBDIR"]
     env["RUST_BACKTRACE"] = "full"
+    env["MOZ_TOPSRCDIR"] = topsrcdir
     env["MOZ_TOPOBJDIR"] = topobjdir
     env["MOZ_FOLD_LIBS"] = substs.get("MOZ_FOLD_LIBS")
     env["GLEAN_PYTHON_VENV_DIR"] = substs.get("GLEAN_PARSER_VENV")

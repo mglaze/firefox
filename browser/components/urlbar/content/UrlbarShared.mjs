@@ -9,7 +9,7 @@
  * its own copy of the module).
  */
 
-import * as UrlbarContentUtils from "chrome://browser/content/urlbar/UrlbarContentUtils.mjs";
+import { UrlbarContentUtils } from "chrome://browser/content/urlbar/UrlbarContentUtils.mjs";
 import UrlbarPrefs from "chrome://browser/content/urlbar/UrlbarContentPrefs.mjs";
 
 /**
@@ -355,7 +355,7 @@ export const UrlbarShared = {
   },
 
   // Size in `px` of icons in top-pick rows in the view. Should be kept in sync
-  // with the `--urlbarView-top-pick-icon-size` CSS variable.
+  // with the `--urlbarview-top-pick-icon-size` CSS variable.
   TOP_PICK_ICON_SIZE: 58,
 
   // The number of results by which Page Up/Down move the selection.
